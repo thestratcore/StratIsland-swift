@@ -80,9 +80,9 @@ echo '{"hook_event_name":"Stop"}' | python3 ~/.local/bin/claude-ntfy-notify.py; 
 
 - **Nothing is drawn inside the cutout.** It is a physical hole with no pixels. The island
   is two flanks in the menu bar plus a panel that drops below.
-- **124 pt flanks.** OCR A is monospaced and wide; at 80 pt the session name clipped to
-  `OBS…`. 124 pt fits ~10 characters and still leaves ~670 pt of menu bar free on each
-  side — and menus grow from the left edge while status items grow from the right, so the
+- **124 pt flanks, in both states.** OCR A is monospaced and wide; at 80 pt the session
+  name clipped to `OBS…`. 124 pt fits ~10 characters and still leaves ~670 pt of menu bar
+  free on each side — and menus grow from the left edge while status items grow from the right, so the
   strip beside the notch is the last real estate either claims.
 - **Exactly two lines per session in the panel.** Identity and timing on the first,
   context on the second. A variable-height row made the list jump whenever a `detail`
@@ -94,6 +94,27 @@ echo '{"hook_event_name":"Stop"}' | python3 ~/.local/bin/claude-ntfy-notify.py; 
   away. Looking instead for a layer-0 window covering the whole screen missed every
   full-screen app that leaves the menu-bar strip alone, and could not be loosened without
   also matching an ordinary zoomed window.
+- **Hover is pointer-driven, not event-driven.** SwiftUI's `.onHover` chattered against a
+  window that resizes under the pointer — a single pass logged `inside=true, false, true,
+  false` in a few hundred milliseconds, and whichever edge landed last won, which is why
+  the panel sometimes stayed open. A global mouse-moved monitor and a rectangle test
+  decide it instead. Expanding tests the collapsed rect and collapsing tests the expanded
+  one, so the two boundaries can't fight.
+- **The island never moves sideways.** Expanding used to widen each flank 108 → 150 pt, so
+  the window's origin moved left while the SwiftUI content re-laid out on a different curve
+  than the frame animation: the pill visibly slid as it opened. Flanks are a constant
+  124 pt and hover changes height only.
+- **Menu-bar visibility is polled every 1.5 s** as well as observed. Nothing is posted when
+  the menu bar auto-hides or is revealed, and space-change notifications arrive before the
+  window list reflects the new space.
+
+### Debugging
+
+    NOTCHISLAND_DEBUG_LOG=1 ./build/NotchIsland.app/Contents/MacOS/NotchIsland
+
+logs expand/collapse and every change in the visibility decision to stderr.
+`NOTCHISLAND_DEBUG_EXPANDED=1` pins the panel open.
+
 - **OCR A for structure, SF Mono for prose.** Names, states, counts and timings are OCR A.
   The `detail` line is a sentence written for a human and is unreadable in OCR A at 10 pt.
 - **The pulse runs on CoreAnimation, not SwiftUI.** A `repeatForever` SwiftUI animation

@@ -11,7 +11,8 @@ struct IslandView: View {
     /// Reports the panel's natural height so the window can size itself to the content.
     var onPanelHeight: (CGFloat) -> Void = { _ in }
 
-    private var flankWidth: CGFloat { expanded ? Theme.flankExpanded : Theme.flankCompact }
+    /// Constant in both states — see the note on `Theme.flankWidth`.
+    private var flankWidth: CGFloat { Theme.flankWidth }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,10 +41,13 @@ struct IslandView: View {
                             bottomTrailingRadius: Theme.panelCornerRadius
                         )
                     )
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(.opacity)
             }
         }
-        .animation(.spring(response: 0.34, dampingFraction: 0.78), value: expanded)
+        // Matches the window's own frame animation. Two different curves driving the same
+        // motion is what made the open look unsteady; the window height is the motion now,
+        // and the content only fades with it.
+        .animation(.easeOut(duration: 0.22), value: expanded)
     }
 
     // MARK: - Left flank: the single most urgent session
@@ -58,7 +62,7 @@ struct IslandView: View {
                     Text(s.cli.glyph)
                         .font(Theme.ocr(9))
                         .foregroundStyle(Theme.textTertiary)
-                    Text(s.shortName(max: expanded ? 18 : 10))
+                    Text(s.shortName(max: 10))
                         .font(Theme.ocr(10))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)

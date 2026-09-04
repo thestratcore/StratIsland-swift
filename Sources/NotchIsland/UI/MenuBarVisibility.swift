@@ -9,6 +9,7 @@ final class MenuBarVisibility {
     var onChange: () -> Void = {}
 
     private var mouseMonitor: Any?
+    private var poll: DispatchSourceTimer?
 
     func start() {
         let nc = NSWorkspace.shared.notificationCenter
@@ -20,7 +21,23 @@ final class MenuBarVisibility {
                        name: NSWorkspace.didLaunchApplicationNotification, object: nil)
         nc.addObserver(self, selector: #selector(evaluate),
                        name: NSWorkspace.didTerminateApplicationNotification, object: nil)
+        startPoll()
         evaluate()
+    }
+
+    /// Workspace notifications are not a complete account of the menu bar. Nothing is
+    /// posted when it auto-hides or is revealed by the pointer, and space-change events
+    /// arrive before the window list reflects the new space. A 1.5 s check while the app is
+    /// running costs one window-list scan per tick and removes the entire class of "it
+    /// usually hides, but not every time".
+    private func startPoll() {
+        let t = DispatchSource.makeTimerSource(queue: .main)
+        t.schedule(deadline: .now() + 1.5, repeating: 1.5, leeway: .milliseconds(500))
+        t.setEventHandler { [weak self] in
+            MainActor.assumeIsolated { self?.evaluate() }
+        }
+        t.resume()
+        poll = t
     }
 
     @objc private func evaluate() {
@@ -62,16 +79,34 @@ final class MenuBarVisibility {
             [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
         ) as? [[String: Any]] else { return false }
 
+        let menuLevel = Int(CGWindowLevelForKey(.mainMenuWindow))
+        var menuBarOnScreen = false
+        var fullScreenWindow = false
+        let screenBounds = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 })?.frame
+
         for win in list {
             guard let layer = win[kCGWindowLayer as String] as? Int,
-                  layer == Int(CGWindowLevelForKey(.mainMenuWindow)),
-                  win[kCGWindowOwnerName as String] as? String == "Window Server",
                   let dict = win[kCGWindowBounds as String] as? [String: Any],
                   let rect = CGRect(dictionaryRepresentation: dict as CFDictionary)
             else { continue }
-            if rect.height > 0 { return false }
+
+            // These bounds are CoreGraphics coordinates: y grows downward from the top of
+            // the display. A menu bar that has been hidden is either dropped from the
+            // on-screen list or parked above the top edge, so presence alone is not enough.
+            if layer == menuLevel,
+               win[kCGWindowOwnerName as String] as? String == "Window Server",
+               rect.height > 0, rect.minY < 1, rect.maxY > 0 {
+                menuBarOnScreen = true
+            }
+
+            // Belt and braces: a layer-0 window covering the whole display is a full-screen
+            // space even if the menu-bar reading is somehow ambiguous.
+            if layer == 0, let b = screenBounds,
+               rect.width >= b.width - 1, rect.height >= b.height - 1 {
+                fullScreenWindow = true
+            }
         }
-        return true
+        return !menuBarOnScreen || fullScreenWindow
     }
 
     private func installMouseMonitor() {

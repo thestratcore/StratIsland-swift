@@ -2,13 +2,17 @@ import SwiftUI
 import CoreText
 
 enum Theme {
-    /// Compact flank width on each side of the cutout. OCR A is monospaced and wide — at
+    /// Flank width on each side of the cutout — the same collapsed and expanded, so the
+    /// island never moves sideways. Expanding used to widen the flanks from 108 to 150 pt,
+    /// which meant the window's origin.x moved left by 21 pt while the SwiftUI content
+    /// re-laid out on a different curve than the window's frame animation: the pill visibly
+    /// slid left as it opened. Hover now changes height only.
+    /// OCR A is monospaced and wide — at
     /// 80 pt the session name clipped to "OBS…", which tells you nothing. 124 pt fits ~10
     /// characters and still leaves ~680 pt of menu bar free on each side: menus grow
     /// rightward from the left edge and status items grow leftward from the right edge, so
     /// the strip beside the notch is the last real estate either one claims.
-    static let flankCompact: CGFloat = 124
-    static let flankExpanded: CGFloat = 168
+    static let flankWidth: CGFloat = 124
     static let panelCornerRadius: CGFloat = 18
     static let flankCornerRadius: CGFloat = 9
 
