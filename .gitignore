@@ -1,0 +1,5 @@
+.build/
+build/
+.DS_Store
+# OCR A Extended is copied from /Library/Fonts at package time, never committed.
+*.TTF

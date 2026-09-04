@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.stratcore.notchisland</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__APP_PATH__/Contents/MacOS/NotchIsland</string>
+    </array>
+    <key>RunAtLoad</key><true/>
+    <!-- Deliberately false: KeepAlive would relaunch the app the moment you chose Quit. -->
+    <key>KeepAlive</key><false/>
+    <key>ProcessType</key><string>Interactive</string>
+    <key>StandardErrorPath</key><string>/tmp/notchisland.err.log</string>
+</dict>
+</plist>
