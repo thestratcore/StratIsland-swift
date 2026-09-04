@@ -12,9 +12,9 @@ final class MenuBarVisibility {
 
     func start() {
         let nc = NSWorkspace.shared.notificationCenter
-        nc.addObserver(self, selector: #selector(evaluate),
+        nc.addObserver(self, selector: #selector(evaluateSoon),
                        name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
-        nc.addObserver(self, selector: #selector(evaluate),
+        nc.addObserver(self, selector: #selector(evaluateSoon),
                        name: NSWorkspace.didActivateApplicationNotification, object: nil)
         nc.addObserver(self, selector: #selector(evaluate),
                        name: NSWorkspace.didLaunchApplicationNotification, object: nil)
@@ -24,35 +24,54 @@ final class MenuBarVisibility {
     }
 
     @objc private func evaluate() {
-        let hidden = detectFullScreen()
-        guard hidden != menuBarHidden else { return }
-        menuBarHidden = hidden
+        let hidden = detectMenuBarHidden()
         // While the menu bar is hidden, watch for the cursor being pushed to the top edge,
         // which is what reveals it. The monitor only runs in that state.
-        if hidden { installMouseMonitor() } else { removeMouseMonitor() }
+        if hidden != menuBarHidden {
+            menuBarHidden = hidden
+            if hidden { installMouseMonitor() } else { removeMouseMonitor() }
+        }
+        // Always notify, even when this state is unchanged: the controller's other gate is
+        // whether Terminal is running, and app launch/quit arrives on these same
+        // notifications. Returning early here left the island on screen after Terminal
+        // quit, until something else happened to poke the store.
         onChange()
     }
 
-    /// A window at layer 0 covering the entire screen means a full-screen space.
-    private func detectFullScreen() -> Bool {
-        guard let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 })
-        else { return false }
-        let bounds = screen.frame
+    /// Space transitions notify at the start of the animation, when the window list still
+    /// describes the space being left. Re-check once it has settled.
+    @objc private func evaluateSoon() {
+        evaluate()
+        for delay in [0.4, 1.2] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                MainActor.assumeIsolated { self?.evaluate() }
+            }
+        }
+    }
 
+    /// Ask about the menu bar directly rather than inferring it from window geometry.
+    ///
+    /// The window server owns a "Menubar" window at the main-menu level, and it drops off
+    /// the on-screen list exactly when the menu bar goes away — full-screen spaces, and
+    /// "Automatically hide and show the menu bar" alike. The previous test looked for a
+    /// layer-0 window covering the whole screen, which missed every full-screen app that
+    /// leaves the menu-bar strip alone (most of them, on a notched display) and could not
+    /// be loosened without also matching an ordinary zoomed window.
+    private func detectMenuBarHidden() -> Bool {
         guard let list = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
         ) as? [[String: Any]] else { return false }
 
         for win in list {
-            guard let layer = win[kCGWindowLayer as String] as? Int, layer == 0,
+            guard let layer = win[kCGWindowLayer as String] as? Int,
+                  layer == Int(CGWindowLevelForKey(.mainMenuWindow)),
+                  win[kCGWindowOwnerName as String] as? String == "Window Server",
                   let dict = win[kCGWindowBounds as String] as? [String: Any],
                   let rect = CGRect(dictionaryRepresentation: dict as CFDictionary)
             else { continue }
-            if rect.width >= bounds.width - 1, rect.height >= bounds.height - 1 {
-                return true
-            }
+            if rect.height > 0 { return false }
         }
-        return false
+        return true
     }
 
     private func installMouseMonitor() {
@@ -65,7 +84,7 @@ final class MenuBarVisibility {
                 if atTop, self.menuBarHidden {
                     self.menuBarHidden = false
                     self.onChange()
-                } else if !atTop, !self.menuBarHidden, self.detectFullScreen() {
+                } else if !atTop, !self.menuBarHidden, self.detectMenuBarHidden() {
                     self.menuBarHidden = true
                     self.onChange()
                 }

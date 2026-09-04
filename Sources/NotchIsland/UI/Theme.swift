@@ -3,12 +3,12 @@ import CoreText
 
 enum Theme {
     /// Compact flank width on each side of the cutout. OCR A is monospaced and wide — at
-    /// 80 pt the session name clipped to "OBS…", which tells you nothing. 108 pt fits ~10
+    /// 80 pt the session name clipped to "OBS…", which tells you nothing. 124 pt fits ~10
     /// characters and still leaves ~680 pt of menu bar free on each side: menus grow
     /// rightward from the left edge and status items grow leftward from the right edge, so
     /// the strip beside the notch is the last real estate either one claims.
-    static let flankCompact: CGFloat = 108
-    static let flankExpanded: CGFloat = 150
+    static let flankCompact: CGFloat = 124
+    static let flankExpanded: CGFloat = 168
     static let panelCornerRadius: CGFloat = 18
     static let flankCornerRadius: CGFloat = 9
 
@@ -20,16 +20,21 @@ enum Theme {
 
     // MARK: - Type
 
+    /// Added to every type size in the island. The call sites keep their relative
+    /// proportions; this is the one dial for overall legibility, since the whole thing is
+    /// read at a glance from a normal sitting distance rather than studied.
+    static let fontBump: CGFloat = 2
+
     /// OCR A carries the machine-readout character: names, states, counts, timings.
     static func ocr(_ size: CGFloat) -> Font {
-        FontRegistry.ocrFamily.map { Font.custom($0, fixedSize: size) }
-            ?? .system(size: size, weight: .medium, design: .monospaced)
+        FontRegistry.ocrFamily.map { Font.custom($0, fixedSize: size + fontBump) }
+            ?? .system(size: size + fontBump, weight: .medium, design: .monospaced)
     }
 
     /// The `detail` line is prose written for a human. OCR A at 11 pt makes it unreadable,
     /// so structure and content deliberately use different faces.
     static func prose(_ size: CGFloat) -> Font {
-        .system(size: size, design: .monospaced)
+        .system(size: size + fontBump, design: .monospaced)
     }
 }
 

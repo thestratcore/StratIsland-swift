@@ -80,10 +80,20 @@ echo '{"hook_event_name":"Stop"}' | python3 ~/.local/bin/claude-ntfy-notify.py; 
 
 - **Nothing is drawn inside the cutout.** It is a physical hole with no pixels. The island
   is two flanks in the menu bar plus a panel that drops below.
-- **108 pt flanks.** OCR A is monospaced and wide; at 80 pt the session name clipped to
-  `OBS…`. 108 pt fits ~10 characters and still leaves ~680 pt of menu bar free on each
+- **124 pt flanks.** OCR A is monospaced and wide; at 80 pt the session name clipped to
+  `OBS…`. 124 pt fits ~10 characters and still leaves ~670 pt of menu bar free on each
   side — and menus grow from the left edge while status items grow from the right, so the
   strip beside the notch is the last real estate either claims.
+- **Exactly two lines per session in the panel.** Identity and timing on the first,
+  context on the second. A variable-height row made the list jump whenever a `detail`
+  string appeared or a subagent spawned; `fan[]` is now a count, not a list.
+- **One type dial.** `Theme.fontBump` is added to every size in the island, so overall
+  legibility moves without disturbing the relative proportions.
+- **The menu bar is detected, not inferred.** Visibility follows the window server's
+  "Menubar" window: it drops off the on-screen window list exactly when the menu bar goes
+  away. Looking instead for a layer-0 window covering the whole screen missed every
+  full-screen app that leaves the menu-bar strip alone, and could not be loosened without
+  also matching an ordinary zoomed window.
 - **OCR A for structure, SF Mono for prose.** Names, states, counts and timings are OCR A.
   The `detail` line is a sentence written for a human and is unreadable in OCR A at 10 pt.
 - **The pulse runs on CoreAnimation, not SwiftUI.** A `repeatForever` SwiftUI animation

@@ -62,9 +62,20 @@ struct ExpandedPanelView: View {
     }
 }
 
+/// Exactly two lines per session, always — identity and timing on the first, context on the
+/// second. A variable-height row made the panel jump every time a `detail` string appeared
+/// or a subagent spawned, and with several sessions running the list outgrew a glance.
+/// Everything that used to occupy a third line (`detail`, `fan[]`) is folded into line two.
 private struct SessionRow: View {
     let session: AgentSession
     let now: Date
+
+    /// The prose slot: what the session is actually doing. Claude publishes `detail`; when
+    /// it doesn't, the newest subagent's label is the next most informative thing.
+    private var context: String? {
+        if let d = session.detail { return d }
+        return session.fan.last?.label
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -76,6 +87,7 @@ private struct SessionRow: View {
                 Text(session.shortName(max: 22))
                     .font(Theme.ocr(11))
                     .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
                 if let badge = session.kind.badge {
                     Text(badge)
                         .font(Theme.ocr(8))
@@ -84,49 +96,44 @@ private struct SessionRow: View {
                         .padding(.vertical, 1)
                         .overlay(RoundedRectangle(cornerRadius: 2).stroke(Theme.hairline))
                 }
-                Spacer()
+                Spacer(minLength: 8)
+                Text(session.state.label)
+                    .font(Theme.ocr(9))
+                    .foregroundStyle(session.state.color)
+                    .lineLimit(1)
                 Text(formatElapsed(now.timeIntervalSince(session.startedAt)))
                     .font(Theme.ocr(10))
                     .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(1)
             }
 
             HStack(spacing: 6) {
                 Text(session.project.uppercased())
                     .font(Theme.ocr(9))
                     .foregroundStyle(Theme.textTertiary)
-                Text(session.state.label)
-                    .font(Theme.ocr(9))
-                    .foregroundStyle(session.state.color)
-                Spacer()
+                    .lineLimit(1)
+                    .layoutPriority(1)
+                if !session.fan.isEmpty {
+                    // Subagents are a count here, not a list: they churn far too fast to
+                    // read individually, and each one used to add a line.
+                    Text("└\(session.fan.count)")
+                        .font(Theme.ocr(9))
+                        .foregroundStyle(Theme.textTertiary)
+                        .layoutPriority(1)
+                }
+                if let context {
+                    Text(context)
+                        .font(Theme.prose(10))
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                Spacer(minLength: 6)
                 if let t = session.tokens {
                     Text(formatTokens(t))
                         .font(Theme.ocr(9))
                         .foregroundStyle(Theme.textTertiary)
-                }
-            }
-
-            if let detail = session.detail {
-                Text(detail)
-                    .font(Theme.prose(10))
-                    .foregroundStyle(Theme.textSecondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 1)
-            }
-
-            // Subagents live here and only here — they churn far too fast for the pill.
-            ForEach(session.fan.prefix(3)) { item in
-                HStack(spacing: 5) {
-                    Text("└")
-                        .font(Theme.ocr(9))
-                        .foregroundStyle(Theme.textTertiary)
-                    Text(item.kind.uppercased())
-                        .font(Theme.ocr(8))
-                        .foregroundStyle(Theme.textTertiary)
-                    Text(item.label)
-                        .font(Theme.prose(9))
-                        .foregroundStyle(Theme.textTertiary)
-                        .lineLimit(1)
+                        .layoutPriority(1)
                 }
             }
         }
