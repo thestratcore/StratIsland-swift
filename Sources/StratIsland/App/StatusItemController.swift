@@ -7,9 +7,11 @@ import AppKit
 final class StatusItemController: NSObject {
     private var item: NSStatusItem?
     private let store: SessionStore
+    private let health: AppHealth
 
-    init(store: SessionStore) {
+    init(store: SessionStore, health: AppHealth) {
         self.store = store
+        self.health = health
         super.init()
     }
 
@@ -31,13 +33,18 @@ final class StatusItemController: NSObject {
         mute.identifier = NSUserInterfaceItemIdentifier("mute")
         menu.addItem(mute)
 
+        let healthItem = NSMenuItem(title: "Health: OK", action: nil, keyEquivalent: "")
+        healthItem.identifier = NSUserInterfaceItemIdentifier("health")
+        healthItem.isEnabled = false
+        menu.addItem(healthItem)
+
         menu.addItem(.separator())
 
         let sock = NSMenuItem(title: "Copy socket path", action: #selector(copySocket), keyEquivalent: "")
         sock.target = self
         menu.addItem(sock)
 
-        let quit = NSMenuItem(title: "Quit NotchIsland", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit StratIsland", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
         return menu
@@ -56,5 +63,9 @@ final class StatusItemController: NSObject {
 extension StatusItemController: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         menu.items.first { $0.identifier?.rawValue == "mute" }?.state = store.muted ? .on : .off
+        let lines = health.menuLines
+        menu.items.first { $0.identifier?.rawValue == "health" }?.title = lines.isEmpty
+            ? "Health: OK"
+            : "Health: " + lines.map { "\($0.0.rawValue): \($0.1)" }.joined(separator: "; ")
     }
 }

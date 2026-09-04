@@ -11,8 +11,10 @@ final class ClaudeWatcher {
     private let jobsDir = NSString(string: "~/.claude/jobs").expandingTildeInPath
     private var watcher: FSWatcher?
     private let onUpdate: ([SessionSnapshot]) -> Void
+    private let health: AppHealth
 
-    init(onUpdate: @escaping ([SessionSnapshot]) -> Void) {
+    init(health: AppHealth, onUpdate: @escaping ([SessionSnapshot]) -> Void) {
+        self.health = health
         self.onUpdate = onUpdate
     }
 
@@ -20,7 +22,11 @@ final class ClaudeWatcher {
         watcher = FSWatcher(paths: [sessionsDir, jobsDir]) { [weak self] in
             Task { @MainActor in self?.scan() }
         }
-        watcher?.start()
+        if watcher?.start() == true {
+            health.clear(.fileEvents)
+        } else {
+            health.report(.fileEvents, "Claude session directories are not being watched")
+        }
         scan()
     }
 
@@ -28,15 +34,25 @@ final class ClaudeWatcher {
 
     func scan() {
         let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(atPath: sessionsDir) else {
-            onUpdate([]); return
+        let files: [String]
+        do {
+            files = try fm.contentsOfDirectory(atPath: sessionsDir)
+            health.clear(.claudeWatcher)
+        } catch {
+            health.report(.claudeWatcher, "Cannot read the Claude sessions directory")
+            onUpdate([])
+            return
         }
         var out: [SessionSnapshot] = []
+        var malformedFiles = 0
 
         for file in files where file.hasSuffix(".json") {
             guard let obj = readJSONObject(at: (sessionsDir as NSString).appendingPathComponent(file)),
                   let pid = obj["pid"] as? Int32 ?? (obj["pid"] as? Int).map(Int32.init)
-            else { continue }
+            else {
+                malformedFiles += 1
+                continue
+            }
 
             // A session file outlives a crashed process; the pid is the truth.
             guard processIsAlive(pid) else { continue }
@@ -114,6 +130,11 @@ final class ClaudeWatcher {
                 tokens: tokens,
                 fan: fan
             ))
+        }
+        if malformedFiles > 0 {
+            health.report(.claudeWatcher, "Rejected \(malformedFiles) malformed session file(s)")
+        } else {
+            health.clear(.claudeWatcher)
         }
         onUpdate(out)
     }

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Wires the two CLIs into NotchIsland. Idempotent, and backs up everything it touches.
+# Wires the two CLIs into StratIsland. Idempotent, and backs up everything it touches.
 #
 #   1. installs the patched notify scripts into ~/.local/bin (originals backed up)
 #   2. adds a `Notification` hook to ~/.claude/settings.json (the Stop hook is left alone)

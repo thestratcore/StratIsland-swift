@@ -16,9 +16,10 @@ struct PushEvent {
 /// Listens on a Unix domain socket for one-line JSON pushes from the two hook scripts.
 /// This exists because a status *file* can't distinguish "waiting for you" from
 /// "finished" — both look idle — and because Codex has no status file at all.
+@MainActor
 final class PushServer {
     static var socketPath: String {
-        let dir = NSString(string: "~/Library/Application Support/NotchIsland").expandingTildeInPath
+        let dir = NSString(string: "~/Library/Application Support/StratIsland").expandingTildeInPath
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         return (dir as NSString).appendingPathComponent("push.sock")
     }
@@ -31,12 +32,16 @@ final class PushServer {
         self.handler = handler
     }
 
-    func start() {
+    @discardableResult
+    func start() -> Bool {
         let path = Self.socketPath
         unlink(path)
 
         fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { return }
+        guard fd >= 0 else {
+            Diagnostics.logger.error("Unable to create Unix socket: errno \(errno)")
+            return false
+        }
 
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
@@ -49,13 +54,19 @@ final class PushServer {
         let bound = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, size) }
         }
-        guard bound == 0, listen(fd, 8) == 0 else { close(fd); fd = -1; return }
+        guard bound == 0, listen(fd, 8) == 0 else {
+            Diagnostics.logger.error("Unable to bind or listen on Unix socket: errno \(errno)")
+            close(fd)
+            fd = -1
+            return false
+        }
         chmod(path, 0o600)
 
-        let src = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .global(qos: .utility))
+        let src = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .main)
         src.setEventHandler { [weak self] in self?.accept() }
         src.resume()
         source = src
+        return true
     }
 
     func stop() {
@@ -79,7 +90,10 @@ final class PushServer {
                   let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
                   let cli = (obj["cli"] as? String).flatMap(CLIKind.init(rawValue:)),
                   let ev = (obj["event"] as? String).flatMap(PushKind.init(rawValue:))
-            else { continue }
+            else {
+                Diagnostics.logger.error("Rejected malformed push event")
+                continue
+            }
             let event = PushEvent(
                 cli: cli, event: ev,
                 sessionId: obj["session_id"] as? String,
@@ -89,5 +103,4 @@ final class PushServer {
         }
     }
 
-    deinit { stop() }
 }

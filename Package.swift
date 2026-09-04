@@ -2,13 +2,19 @@
 import PackageDescription
 
 let package = Package(
-    name: "NotchIsland",
+    name: "StratIsland",
     platforms: [.macOS(.v14)],
     targets: [
         .executableTarget(
-            name: "NotchIsland",
-            path: "Sources/NotchIsland",
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            name: "StratIsland",
+            path: "Sources/StratIsland",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .testTarget(
+            name: "StratIslandTests",
+            dependencies: ["StratIsland"],
+            path: "Tests/StratIslandTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
         )
     ]
 )

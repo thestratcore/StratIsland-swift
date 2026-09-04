@@ -30,6 +30,7 @@ enum Theme {
     static let fontBump: CGFloat = 2
 
     /// OCR A carries the machine-readout character: names, states, counts, timings.
+    @MainActor
     static func ocr(_ size: CGFloat) -> Font {
         FontRegistry.ocrFamily.map { Font.custom($0, fixedSize: size + fontBump) }
             ?? .system(size: size + fontBump, weight: .medium, design: .monospaced)
@@ -42,6 +43,7 @@ enum Theme {
     }
 }
 
+@MainActor
 enum FontRegistry {
     private(set) static var ocrFamily: String?
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Claude Code hook: ntfy.sh push (unchanged behaviour) + NotchIsland socket emit.
+"""Claude Code hook: ntfy.sh push (unchanged behaviour) + StratIsland socket emit.
 
 The ntfy POST runs first and is completely unaffected by the socket write below: the emit
 is wrapped in its own bare except with a short non-blocking timeout, so a dead app, a
@@ -21,7 +21,7 @@ except Exception:
     _SSL_CONTEXT = None
 
 ISLAND_SOCKET = os.path.expanduser(
-    "~/Library/Application Support/NotchIsland/push.sock"
+    "~/Library/Application Support/StratIsland/push.sock"
 )
 
 

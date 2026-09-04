@@ -128,7 +128,7 @@ enum SessionTitle {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             // Injected context, not a prompt: AGENTS.md headers and <environment_context>
             // style wrappers both arrive as user messages.
-            if text.isEmpty || text.hasPrefix("#") || text.hasPrefix("<") { continue }
+            if looksInjected(text) { continue }
             found = clean(text)
             break
         }
@@ -171,5 +171,23 @@ enum SessionTitle {
             }
             .joined(separator: " ")
         return flat.count > 60 ? String(flat.prefix(59)) + "…" : flat
+    }
+
+    /// Codex serializes repository policy and runtime context as user turns. Keep the filter
+    /// explicit and conservative: a low-confidence title is worse than the stable project name.
+    private static func looksInjected(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        if trimmed.hasPrefix("#") || trimmed.hasPrefix("<") { return true }
+
+        let markers = [
+            "AGENTS.md instructions",
+            "<INSTRUCTIONS>",
+            "<environment_context>",
+            "<skills_instructions>",
+            "<permissions instructions>",
+            "You are Codex,",
+        ]
+        return markers.contains { trimmed.localizedCaseInsensitiveContains($0) }
     }
 }

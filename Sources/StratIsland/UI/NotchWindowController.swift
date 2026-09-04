@@ -16,14 +16,18 @@ final class NotchWindowController: NSObject {
     private var collapseWork: DispatchWorkItem?
     /// Always on. See `startPointerTracking`.
     private var pointerMonitors: [Any] = []
+    /// Global mouse monitors can miss transitions during Space/menu-bar animations. This
+    /// low-frequency position check is the deterministic backstop, not the primary path.
+    private var pointerWatchdog: DispatchSourceTimer?
     private var lastShouldShow: Bool?
+    private var terminalRunning = false
     /// While an attention flash is on screen, the pointer's position is irrelevant.
     private var attentionUntil: Date?
-    private let debugLog = ProcessInfo.processInfo.environment["NOTCHISLAND_DEBUG_LOG"] == "1"
-    /// Set NOTCHISLAND_DEBUG_EXPANDED=1 to pin the panel open. Hover can't be driven from a
+    private let debugLog = ProcessInfo.processInfo.environment["STRATISLAND_DEBUG_LOG"] == "1"
+    /// Set STRATISLAND_DEBUG_EXPANDED=1 to pin the panel open. Hover can't be driven from a
     /// script without tripping the Accessibility prompt, so this is how the expanded layout
     /// gets inspected.
-    private let debugPinned = ProcessInfo.processInfo.environment["NOTCHISLAND_DEBUG_EXPANDED"] == "1"
+    private let debugPinned = ProcessInfo.processInfo.environment["STRATISLAND_DEBUG_EXPANDED"] == "1"
 
     /// The cutout, derived from the screen rather than hardcoded, so a scaling change or an
     /// external display doesn't leave the island floating in the wrong place.
@@ -52,6 +56,18 @@ final class NotchWindowController: NSObject {
             name: NSApplication.didChangeScreenParametersNotification, object: nil
         )
         visibility.onChange = { [weak self] in self?.refreshVisibility() }
+        let workspace = NSWorkspace.shared
+        terminalRunning = workspace.runningApplications.contains {
+            $0.bundleIdentifier == "com.apple.Terminal"
+        }
+        workspace.notificationCenter.addObserver(
+            self, selector: #selector(workspaceApplicationChanged(_:)),
+            name: NSWorkspace.didLaunchApplicationNotification, object: nil
+        )
+        workspace.notificationCenter.addObserver(
+            self, selector: #selector(workspaceApplicationChanged(_:)),
+            name: NSWorkspace.didTerminateApplicationNotification, object: nil
+        )
         visibility.start()
         refreshVisibility()
     }
@@ -138,8 +154,12 @@ final class NotchWindowController: NSObject {
         collapseWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
-                self?.collapseWork = nil
-                self?.setExpanded(false)
+                guard let self else { return }
+                self.collapseWork = nil
+                guard let notch = self.notchRect else { return }
+                let expandedFrame = self.frame(for: true, notch: notch)
+                guard !hoverContains(NSEvent.mouseLocation, in: expandedFrame) else { return }
+                self.setExpanded(false)
             }
         }
         collapseWork = work
@@ -163,8 +183,8 @@ final class NotchWindowController: NSObject {
     ///
     /// A pointer position is unambiguous and has no relationship to the window's animation
     /// state. Global monitors see events destined for other apps (this app is never
-    /// frontmost); the local monitor covers the case where it is. The callback is a
-    /// rectangle test, and nothing runs while the pointer is still.
+    /// frontmost); the local monitor covers the case where it is. A 150 ms watchdog covers
+    /// events lost during Space and menu-bar transitions.
     private func startPointerTracking() {
         guard pointerMonitors.isEmpty, !debugPinned else { return }
         let events: NSEvent.EventTypeMask = [
@@ -179,6 +199,14 @@ final class NotchWindowController: NSObject {
             return event
         }
         if let local { pointerMonitors.append(local) }
+
+        let watchdog = DispatchSource.makeTimerSource(queue: .main)
+        watchdog.schedule(deadline: .now() + 0.15, repeating: 0.15, leeway: .milliseconds(50))
+        watchdog.setEventHandler { [weak self] in
+            MainActor.assumeIsolated { self?.evaluatePointer() }
+        }
+        watchdog.resume()
+        pointerWatchdog = watchdog
     }
 
     /// Expand when the pointer is over the collapsed island; collapse when it has left the
@@ -190,13 +218,16 @@ final class NotchWindowController: NSObject {
         let pointer = NSEvent.mouseLocation
 
         if expanded {
-            if panel.frame.insetBy(dx: -4, dy: -4).contains(pointer) {
+            // Use the final expanded frame, not `panel.frame`: during animation the latter
+            // can still be too short and falsely classify a downward pointer move as leaving.
+            let expandedFrame = frame(for: true, notch: notch)
+            if hoverContains(pointer, in: expandedFrame) {
                 collapseWork?.cancel()
                 collapseWork = nil
             } else if collapseWork == nil {
                 scheduleCollapse(after: 0.2)
             }
-        } else if frame(for: false, notch: notch).contains(pointer) {
+        } else if hoverContains(pointer, in: frame(for: false, notch: notch), margin: 0) {
             collapseWork?.cancel()
             collapseWork = nil
             store.acknowledgeAll()   // seeing it counts as acknowledging it
@@ -206,7 +237,7 @@ final class NotchWindowController: NSObject {
 
     private func log(_ message: @autoclosure () -> String) {
         guard debugLog else { return }
-        FileHandle.standardError.write("[notchisland] \(message())\n".data(using: .utf8)!)
+        FileHandle.standardError.write("[stratisland] \(message())\n".data(using: .utf8)!)
     }
 
     /// A transition into `needsInput` briefly expands the island on its own: nothing
@@ -222,8 +253,8 @@ final class NotchWindowController: NSObject {
                 self.attentionUntil = nil
                 // If the flash pulled the pointer onto the island, hovering takes over from
                 // here; otherwise this collapses it.
-                if let panel = self.panel,
-                   panel.frame.insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation) {
+                if let notch = self.notchRect,
+                   hoverContains(NSEvent.mouseLocation, in: self.frame(for: true, notch: notch)) {
                     return
                 }
                 self.setExpanded(false)
@@ -237,9 +268,6 @@ final class NotchWindowController: NSObject {
 
     func refreshVisibility() {
         guard let panel else { return }
-        let terminalRunning = NSWorkspace.shared.runningApplications.contains {
-            $0.bundleIdentifier == "com.apple.Terminal"
-        }
         // Terminal-gated, with one override: never hide something that is blocked on the
         // user or has just finished — losing that is the failure that kills trust.
         let shouldShow = (terminalRunning || store.hasAttention)
@@ -262,6 +290,15 @@ final class NotchWindowController: NSObject {
         evaluatePointer()
     }
 
+    @objc private func workspaceApplicationChanged(_ notification: Notification) {
+        guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                as? NSRunningApplication,
+              app.bundleIdentifier == "com.apple.Terminal"
+        else { return }
+        terminalRunning = notification.name == NSWorkspace.didLaunchApplicationNotification
+        refreshVisibility()
+    }
+
     /// Switching spaces or displays leaves the pointer somewhere unrelated with no exit
     /// event ever delivered, so treat it as leaving.
     func collapseNow() {
@@ -278,4 +315,9 @@ final class NotchWindowController: NSObject {
         panel?.setFrame(frame(for: expanded, notch: notch), display: true)
         refreshVisibility()
     }
+}
+
+/// Stable hit testing independent of an NSPanel's presentation frame during animation.
+func hoverContains(_ point: CGPoint, in targetFrame: CGRect, margin: CGFloat = 4) -> Bool {
+    targetFrame.insetBy(dx: -margin, dy: -margin).contains(point)
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Codex CLI notify program: ntfy.sh push (unchanged) + NotchIsland socket emit.
+"""Codex CLI notify program: ntfy.sh push (unchanged) + StratIsland socket emit.
 
 Codex allows exactly one `notify` program, and it is the only completion signal Codex
 publishes at all — its rollout logs carry no status. Same isolation rule as the Claude
@@ -13,7 +13,7 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 ISLAND_SOCKET = os.path.expanduser(
-    "~/Library/Application Support/NotchIsland/push.sock"
+    "~/Library/Application Support/StratIsland/push.sock"
 )
 
 

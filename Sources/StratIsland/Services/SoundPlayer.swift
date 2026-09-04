@@ -12,10 +12,15 @@ enum Sound {
     }
 }
 
+@MainActor
+protocol SoundPlaying: AnyObject {
+    func play(_ sound: Sound)
+}
+
 /// macOS exposes no public API for Focus / Do Not Disturb state, so muting is manual —
 /// a toggle in the status item rather than a private plist read that breaks each release.
 @MainActor
-final class SoundPlayer {
+final class SoundPlayer: SoundPlaying {
     private var cache: [String: NSSound] = [:]
 
     func play(_ sound: Sound) {

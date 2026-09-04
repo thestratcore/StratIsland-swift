@@ -3,13 +3,22 @@ import Darwin
 
 /// Enumerating processes via sysctl instead of forking `ps`. The Codex watcher runs on a
 /// timer, so a fork every couple of seconds would show up in Activity Monitor; this doesn't.
-func listProcesses() -> [(pid: Int32, comm: String)] {
+enum ProcessListError: Error {
+    case querySize(Int32)
+    case read(Int32)
+}
+
+func listProcesses() -> Result<[(pid: Int32, comm: String)], ProcessListError> {
     var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
     var size = 0
-    guard sysctl(&mib, 4, nil, &size, nil, 0) == 0, size > 0 else { return [] }
+    guard sysctl(&mib, 4, nil, &size, nil, 0) == 0, size > 0 else {
+        return .failure(.querySize(errno))
+    }
     let count = size / MemoryLayout<kinfo_proc>.stride
     var procs = [kinfo_proc](repeating: kinfo_proc(), count: count)
-    guard sysctl(&mib, 4, &procs, &size, nil, 0) == 0 else { return [] }
+    guard sysctl(&mib, 4, &procs, &size, nil, 0) == 0 else {
+        return .failure(.read(errno))
+    }
 
     let actual = size / MemoryLayout<kinfo_proc>.stride
     var out: [(Int32, String)] = []
@@ -22,7 +31,21 @@ func listProcesses() -> [(pid: Int32, comm: String)] {
         }
         out.append((pid, comm))
     }
-    return out
+    return .success(out)
+}
+
+/// Kernel-recorded process start time, used to bind a Codex process to the rollout created
+/// for that invocation instead of whichever rollout in the same directory changed last.
+func processStartDate(_ pid: Int32) -> Date? {
+    var info = proc_bsdinfo()
+    let size = MemoryLayout<proc_bsdinfo>.size
+    let result = withUnsafeMutablePointer(to: &info) {
+        proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, UnsafeMutableRawPointer($0), Int32(size))
+    }
+    guard result == Int32(size) else { return nil }
+    let seconds = TimeInterval(info.pbi_start_tvsec)
+    let microseconds = TimeInterval(info.pbi_start_tvusec) / 1_000_000
+    return Date(timeIntervalSince1970: seconds + microseconds)
 }
 
 /// Working directory of a process without shelling out to `lsof`.

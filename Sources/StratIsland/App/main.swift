@@ -7,6 +7,7 @@ nonisolated(unsafe) var keepAlive: AnyObject?
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = SessionStore()
+    private let health = AppHealth()
     private var claude: ClaudeWatcher?
     private var codex: CodexWatcher?
     private var push: PushServer?
@@ -23,18 +24,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.start()
         self.window = window
 
-        let statusItem = StatusItemController(store: store)
+        let statusItem = StatusItemController(store: store, health: health)
         statusItem.start()
         self.statusItem = statusItem
 
-        claude = ClaudeWatcher { [weak self] snaps in
+        claude = ClaudeWatcher(health: health) { [weak self] snaps in
             guard let self else { return }
             self.store.apply(snaps, for: .claude)
             self.afterUpdate()
         }
         claude?.start()
 
-        codex = CodexWatcher { [weak self] snaps in
+        codex = CodexWatcher(health: health) { [weak self] snaps in
             guard let self else { return }
             self.store.apply(snaps, for: .codex)
             self.afterUpdate()
@@ -48,7 +49,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.afterUpdate()
             }
         }
-        push?.start()
+        if push?.start() == true {
+            health.clear(.pushServer)
+        } else {
+            health.report(.pushServer, "Completion hooks cannot reach the app")
+        }
     }
 
     private func afterUpdate() {

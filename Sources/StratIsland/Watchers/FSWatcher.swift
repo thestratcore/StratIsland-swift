@@ -3,6 +3,7 @@ import CoreServices
 
 /// Thin FSEvents wrapper. Costs nothing while the watched trees are quiet, which is what
 /// keeps the app at ~0% CPU when no agent is running.
+@MainActor
 final class FSWatcher {
     private var stream: FSEventStreamRef?
     private let paths: [String]
@@ -13,8 +14,9 @@ final class FSWatcher {
         self.onChange = onChange
     }
 
-    func start() {
-        guard stream == nil else { return }
+    @discardableResult
+    func start() -> Bool {
+        guard stream == nil else { return true }
         var context = FSEventStreamContext(
             version: 0,
             info: Unmanaged.passUnretained(self).toOpaque(),
@@ -23,17 +25,26 @@ final class FSWatcher {
         let callback: FSEventStreamCallback = { _, info, _, _, _, _ in
             guard let info else { return }
             let watcher = Unmanaged<FSWatcher>.fromOpaque(info).takeUnretainedValue()
-            watcher.onChange()
+            MainActor.assumeIsolated { watcher.onChange() }
         }
         guard let s = FSEventStreamCreate(
             kCFAllocatorDefault, callback, &context,
             paths as CFArray, FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
             0.1, // 100 ms coalescing
             FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer)
-        ) else { return }
-        FSEventStreamSetDispatchQueue(s, DispatchQueue.global(qos: .utility))
-        FSEventStreamStart(s)
+        ) else {
+            Diagnostics.logger.error("Unable to create FSEvents stream")
+            return false
+        }
+        FSEventStreamSetDispatchQueue(s, DispatchQueue.main)
+        guard FSEventStreamStart(s) else {
+            FSEventStreamInvalidate(s)
+            FSEventStreamRelease(s)
+            Diagnostics.logger.error("Unable to start FSEvents stream")
+            return false
+        }
         stream = s
+        return true
     }
 
     func stop() {
@@ -44,7 +55,6 @@ final class FSWatcher {
         stream = nil
     }
 
-    deinit { stop() }
 }
 
 /// The CLIs write these files without a trailing newline and we can catch one mid-write,

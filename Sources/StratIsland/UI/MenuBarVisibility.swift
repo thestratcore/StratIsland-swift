@@ -20,10 +20,6 @@ final class MenuBarVisibility {
                        name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
         nc.addObserver(self, selector: #selector(evaluateSoon),
                        name: NSWorkspace.didActivateApplicationNotification, object: nil)
-        nc.addObserver(self, selector: #selector(evaluate),
-                       name: NSWorkspace.didLaunchApplicationNotification, object: nil)
-        nc.addObserver(self, selector: #selector(evaluate),
-                       name: NSWorkspace.didTerminateApplicationNotification, object: nil)
         startPoll()
         evaluate()
     }

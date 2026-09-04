@@ -1,4 +1,4 @@
-# NotchIsland
+# StratIsland
 
 A Dynamic Island for the Mac notch, showing the live state of Claude Code and Codex CLI
 sessions. Hover to expand, click a session to jump to the Terminal tab that owns it.
@@ -23,20 +23,24 @@ The left flank carries the single most urgent session; the right flank carries s
 for the rest (`+N` past four). The expanded panel adds project, live action text, elapsed
 time, token count, and any running subagents.
 
+The status menu reports `Health: OK` or names any watcher/socket component that is degraded.
+Runtime failures are also written through unified logging under subsystem
+`com.stratcore.stratisland`.
+
 ## Requirements
 
 - A Mac with a notch (the geometry is derived from `NSScreen.auxiliaryTop*Area`; on a
   machine without one the island simply never appears)
-- macOS 14+, Swift 6
+- macOS 14+, Swift 6 language mode
 - Terminal.app — the click-to-focus path uses its AppleScript `tty of tab`
 
 ## Install
 
 ```sh
-./package.sh                     # builds build/NotchIsland.app
+./package.sh                     # builds build/StratIsland.app
 ./scripts/install-hooks.sh       # wires both CLIs into the app (backs up what it touches)
 ./scripts/install-launchagent.sh # optional: start at login
-open build/NotchIsland.app
+open build/StratIsland.app
 ```
 
 Two one-time permission prompts appear on first use: **Automation** (to focus a Terminal
@@ -54,14 +58,16 @@ it picks up sessions that were already running before it launched.
 
 **Codex** publishes nothing comparable — its rollout logs are write-only with no status
 field and no index. So Codex support is deliberately coarse: process presence for
-existence, rollout file mtime for activity, and its `notify` hook for completion. Codex
-sessions carry no detail line. Parsing the rollout JSONL for one would work but the format
-is undocumented and would break on the next release.
+existence, rollout file mtime for activity, and its `notify` hook for completion. Processes
+are bound one-to-one to rollouts by working directory and kernel process start time; the
+rollout session ID makes completion routing deterministic when several sessions share a
+directory. Codex sessions carry no detail line. Deep rollout parsing would depend on an
+undocumented format and is deliberately excluded.
 
 **Push hooks** cover what files cannot. A `Notification` hook is what makes `NEEDS YOU`
 possible at all: in the session file, "waiting for your permission" and "finished" both
 read as `idle`. Both hook scripts write one line of JSON to a Unix socket at
-`~/Library/Application Support/NotchIsland/push.sock`.
+`~/Library/Application Support/StratIsland/push.sock`.
 
 ### The ntfy scripts are safe
 
@@ -71,8 +77,8 @@ after it, non-blocking, wrapped in its own bare `except`. A dead app, a stale so
 bug in the emit can never cost you a phone notification. Verify any time with:
 
 ```sh
-pkill -f NotchIsland
-rm -f ~/Library/Application\ Support/NotchIsland/push.sock
+pkill -f StratIsland
+rm -f ~/Library/Application\ Support/StratIsland/push.sock
 echo '{"hook_event_name":"Stop"}' | python3 ~/.local/bin/claude-ntfy-notify.py; echo $?
 ```
 
@@ -119,10 +125,10 @@ echo '{"hook_event_name":"Stop"}' | python3 ~/.local/bin/claude-ntfy-notify.py; 
 
 ### Debugging
 
-    NOTCHISLAND_DEBUG_LOG=1 ./build/NotchIsland.app/Contents/MacOS/NotchIsland
+    STRATISLAND_DEBUG_LOG=1 ./build/StratIsland.app/Contents/MacOS/StratIsland
 
 logs expand/collapse and every change in the visibility decision to stderr.
-`NOTCHISLAND_DEBUG_EXPANDED=1` pins the panel open.
+`STRATISLAND_DEBUG_EXPANDED=1` pins the panel open.
 
 - **OCR A for structure, SF Mono for prose.** Names, states, counts and timings are OCR A.
   The `detail` line is a sentence written for a human and is unreadable in OCR A at 10 pt.
@@ -141,6 +147,18 @@ logs expand/collapse and every change in the visibility decision to stderr.
   on (a `Stop` push, a changed action, or a not-working → working transition), with a
   15-minute safety expiry. If the state ever looks sticky, that is the code to revisit —
   `SessionStore.isUnblocked`.
-- With several Codex processes at once, rollout activity is credited to the most recently
-  started one; there is no way to attribute a rollout file to a specific process.
-- Debug: `NOTCHISLAND_DEBUG_EXPANDED=1` pins the panel open.
+- Codex process-to-rollout binding depends on undocumented `session_meta` fields. If that
+  format changes, the app degrades to working-directory and newest-activity matching and
+  reports parsing failures through its health diagnostics.
+- Debug: `STRATISLAND_DEBUG_EXPANDED=1` pins the panel open.
+
+## Validation
+
+```sh
+swift build -Xswiftc -warnings-as-errors
+swift test -Xswiftc -warnings-as-errors
+```
+
+The tests use injected time, scheduling, and sound boundaries. They cover completion and
+acknowledgement, blocked-state clearing and expiry, exited-session reaping, Codex completion
+routing, and injected-prompt filtering without wall-clock sleeps or audio side effects.

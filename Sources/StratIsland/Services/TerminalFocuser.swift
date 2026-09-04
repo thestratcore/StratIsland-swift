@@ -58,7 +58,7 @@ enum TerminalFocuser {
         guard let s = NSAppleScript(source: script) else { return }
         s.executeAndReturnError(&error)
         if let error {
-            NSLog("NotchIsland: Terminal focus failed: \(error)")
+            NSLog("StratIsland: Terminal focus failed: \(error)")
         }
     }
 }
