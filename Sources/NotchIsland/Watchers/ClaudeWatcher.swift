@@ -51,6 +51,8 @@ final class ClaudeWatcher {
             if kind == .background, jobId == nil { continue }
             let cwd = obj["cwd"] as? String ?? ""
             let name = (obj["name"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+            let nameSource = obj["nameSource"] as? String
+            let sessionId = obj["sessionId"] as? String
             let startedMs = obj["startedAt"] as? Double ?? 0
 
             var detail: String?
@@ -86,13 +88,25 @@ final class ClaudeWatcher {
                 }
             }
 
+            // `nameSource: "derived"` means the name is the working directory reworded —
+            // every thread in a repo would read the same. The transcript's own title says
+            // what this one is for.
+            var title = name
+            if name.isEmpty || nameSource == "derived" {
+                if let sessionId, let t = SessionTitle.claude(sessionId: sessionId, cwd: cwd) {
+                    title = t
+                } else if name.isEmpty {
+                    title = (cwd as NSString).lastPathComponent
+                }
+            }
+
             out.append(SessionSnapshot(
                 id: "claude:\(pid)",
                 cli: .claude,
                 kind: kind,
                 pid: pid,
-                sessionId: obj["sessionId"] as? String,
-                name: name.isEmpty ? (cwd as NSString).lastPathComponent : name,
+                sessionId: sessionId,
+                name: title,
                 cwd: cwd,
                 busy: busy,
                 detail: (detail?.isEmpty ?? true) ? nil : detail,

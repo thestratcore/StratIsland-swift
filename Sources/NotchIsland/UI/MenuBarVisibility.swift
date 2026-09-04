@@ -10,6 +10,9 @@ final class MenuBarVisibility {
 
     private var mouseMonitor: Any?
     private var poll: DispatchSourceTimer?
+    /// The window server's menu-bar window, looked up once and then queried by id.
+    private var menuBarWindowID: CGWindowID?
+    private var ticksSinceFullScan = 0
 
     func start() {
         let nc = NSWorkspace.shared.notificationCenter
@@ -75,6 +78,36 @@ final class MenuBarVisibility {
     /// leaves the menu-bar strip alone (most of them, on a notched display) and could not
     /// be loosened without also matching an ordinary zoomed window.
     private func detectMenuBarHidden() -> Bool {
+        // Fast path: ask about one known window rather than enumerating every window on the
+        // system. A full scan serialises information for every window there is, and at
+        // 1.5 s intervals that was the app's largest single cost.
+        if let id = menuBarWindowID, let onScreen = menuBarIsOnScreen(id) {
+            ticksSinceFullScan += 1
+            // The full-screen backstop still needs a real scan, but rarely.
+            if !onScreen { return true }
+            if ticksSinceFullScan < 4 { return false }
+            ticksSinceFullScan = 0
+            return fullScan()
+        }
+        ticksSinceFullScan = 0
+        return fullScan()
+    }
+
+    /// `kCGWindowIsOnscreen` is the same fact the on-screen listing filters by, for one id.
+    private func menuBarIsOnScreen(_ id: CGWindowID) -> Bool? {
+        guard let list = CGWindowListCreateDescriptionFromArray([id] as CFArray)
+                as? [[String: Any]], let win = list.first
+        else { return nil }   // window is gone — re-find it
+        guard let dict = win[kCGWindowBounds as String] as? [String: Any],
+              let rect = CGRect(dictionaryRepresentation: dict as CFDictionary)
+        else { return nil }
+        let onScreen = win[kCGWindowIsOnscreen as String] as? Bool ?? false
+        // A hidden menu bar is either flagged off-screen or parked above the top edge.
+        return onScreen && rect.height > 0 && rect.minY < 1 && rect.maxY > 0
+    }
+
+    /// Enumerate everything: locate the menu-bar window and check for a full-screen window.
+    private func fullScan() -> Bool {
         guard let list = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
         ) as? [[String: Any]] else { return false }
@@ -97,6 +130,8 @@ final class MenuBarVisibility {
                win[kCGWindowOwnerName as String] as? String == "Window Server",
                rect.height > 0, rect.minY < 1, rect.maxY > 0 {
                 menuBarOnScreen = true
+                menuBarWindowID = (win[kCGWindowNumber as String] as? NSNumber)
+                    .map { CGWindowID($0.uint32Value) }
             }
 
             // Belt and braces: a layer-0 window covering the whole display is a full-screen

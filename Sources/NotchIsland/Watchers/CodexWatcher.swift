@@ -9,6 +9,9 @@ final class CodexWatcher {
     private var timer: DispatchSourceTimer?
     private var cwdCache: [Int32: String] = [:]
     private var firstSeen: [Int32: Date] = [:]
+    /// path -> cwd from the rollout's `session_meta`. Written once at session start, so
+    /// this is read once per file and kept.
+    private var rolloutCWD: [String: String] = [:]
     private let onUpdate: ([SessionSnapshot]) -> Void
 
     /// Activity window: a rollout file touched within this many seconds means "working".
@@ -45,10 +48,11 @@ final class CodexWatcher {
             return
         }
 
-        let recentTouch = newestRolloutMTime()
-        let anyActive = recentTouch.map { Date().timeIntervalSince($0) < activeWindow } ?? false
-        // With several Codex processes we cannot attribute a rollout file to one of them,
-        // so activity is credited to the most recently started process only.
+        let rollouts = currentRollouts()
+        let newest = rollouts.max { $0.mtime < $1.mtime }
+        let anyActive = newest.map { Date().timeIntervalSince($0.mtime) < activeWindow } ?? false
+        // Fallback when no rollout can be attributed to a process: activity is credited to
+        // the most recently started one.
         let activePID = pids.last
 
         var out: [SessionSnapshot] = []
@@ -58,15 +62,29 @@ final class CodexWatcher {
             let started = firstSeen[pid] ?? Date()
             firstSeen[pid] = started
 
+            // Match the process to its own rollout by working directory. That gives this
+            // session its own activity signal instead of a global one, and Codex writes no
+            // title, so the first thing the user actually typed stands in for one.
+            let mine = rollouts
+                .filter { !cwd.isEmpty && $0.cwd == cwd }
+                .max { $0.mtime < $1.mtime }
+            let busy: Bool
+            if let mine {
+                busy = Date().timeIntervalSince(mine.mtime) < activeWindow
+            } else {
+                busy = anyActive && pid == activePID
+            }
+            let title = mine.flatMap { SessionTitle.codex(rolloutPath: $0.path) }
+
             out.append(SessionSnapshot(
                 id: "codex:\(pid)",
                 cli: .codex,
                 kind: .interactive,
                 pid: pid,
                 sessionId: nil,
-                name: (cwd as NSString).lastPathComponent,
+                name: title ?? (cwd as NSString).lastPathComponent,
                 cwd: cwd,
-                busy: anyActive && pid == activePID,
+                busy: busy,
                 detail: nil,
                 startedAt: started,
                 tokens: nil,
@@ -76,14 +94,20 @@ final class CodexWatcher {
         onUpdate(out)
     }
 
+    private struct Rollout {
+        let path: String
+        let cwd: String
+        let mtime: Date
+    }
+
     /// Only today's and yesterday's directories are checked — walking the full
     /// sessions/YYYY/MM/DD tree every two seconds would be absurd.
-    private func newestRolloutMTime() -> Date? {
+    private func currentRollouts() -> [Rollout] {
         let fm = FileManager.default
         let cal = Calendar.current
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyy/MM/dd"
-        var newest: Date?
+        var out: [Rollout] = []
 
         for offset in 0...1 {
             guard let day = cal.date(byAdding: .day, value: -offset, to: Date()) else { continue }
@@ -93,9 +117,27 @@ final class CodexWatcher {
                 let path = (dir as NSString).appendingPathComponent(f)
                 guard let attrs = try? fm.attributesOfItem(atPath: path),
                       let m = attrs[.modificationDate] as? Date else { continue }
-                if newest == nil || m > newest! { newest = m }
+                out.append(Rollout(path: path, cwd: cwd(ofRollout: path), mtime: m))
             }
         }
-        return newest
+        return out
+    }
+
+    /// The first record of a rollout is `session_meta`, which carries the working directory.
+    private func cwd(ofRollout path: String) -> String {
+        if let hit = rolloutCWD[path] { return hit }
+        var result = ""
+        if let handle = FileHandle(forReadingAtPath: path) {
+            defer { try? handle.close() }
+            if let data = try? handle.read(upToCount: 64 * 1024),
+               let first = String(decoding: data, as: UTF8.self).split(separator: "\n").first,
+               let obj = try? JSONSerialization.jsonObject(with: Data(first.utf8)) as? [String: Any],
+               let payload = obj["payload"] as? [String: Any],
+               let c = payload["cwd"] as? String {
+                result = c
+            }
+        }
+        rolloutCWD[path] = result
+        return result
     }
 }

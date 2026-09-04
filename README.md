@@ -94,6 +94,15 @@ echo '{"hook_event_name":"Stop"}' | python3 ~/.local/bin/claude-ntfy-notify.py; 
   away. Looking instead for a layer-0 window covering the whole screen missed every
   full-screen app that leaves the menu-bar strip alone, and could not be loosened without
   also matching an ordinary zoomed window.
+- **Session titles come from the transcript, not the session file.**
+  `~/.claude/sessions/<pid>.json` has a `name`, but for interactive sessions it arrives
+  with `nameSource: "derived"` and is just the working directory reworded — every thread
+  started in one repo reads the same. Claude Code appends an `ai-title` record to
+  `~/.claude/projects/<slug>/<sessionId>.jsonl` and keeps it current, so the last one is
+  the thread's actual subject; `last-prompt` is the fallback before a title exists.
+  Background jobs keep their own name, which is already model-written. Codex writes no
+  title at all, so its first genuine user message stands in (skipping the injected
+  AGENTS.md and `<environment_context>` messages, which also arrive as user turns).
 - **Hover is pointer-driven, not event-driven.** SwiftUI's `.onHover` chattered against a
   window that resizes under the pointer — a single pass logged `inside=true, false, true,
   false` in a few hundred milliseconds, and whichever edge landed last won, which is why
