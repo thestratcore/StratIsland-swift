@@ -8,11 +8,11 @@ enum Theme {
     /// re-laid out on a different curve than the window's frame animation: the pill visibly
     /// slid left as it opened. Hover now changes height only.
     /// OCR A is monospaced and wide — at
-    /// 80 pt the session name clipped to "OBS…", which tells you nothing. 124 pt fits ~10
-    /// characters and still leaves ~680 pt of menu bar free on each side: menus grow
+    /// 124 pt useful titles still clipped around 10 characters. 144 pt fits ~12 characters
+    /// and still leaves ~650 pt of menu bar free on each side: menus grow
     /// rightward from the left edge and status items grow leftward from the right edge, so
     /// the strip beside the notch is the last real estate either one claims.
-    static let flankWidth: CGFloat = 124
+    static let flankWidth: CGFloat = 144
     static let panelCornerRadius: CGFloat = 18
     static let flankCornerRadius: CGFloat = 9
 

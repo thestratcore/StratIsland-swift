@@ -86,8 +86,9 @@ echo '{"hook_event_name":"Stop"}' | python3 ~/.local/bin/claude-ntfy-notify.py; 
 
 - **Nothing is drawn inside the cutout.** It is a physical hole with no pixels. The island
   is two flanks in the menu bar plus a panel that drops below.
-- **124 pt flanks, in both states.** OCR A is monospaced and wide; at 80 pt the session
-  name clipped to `OBS…`. 124 pt fits ~10 characters and still leaves ~670 pt of menu bar
+- **144 pt flanks, in both states.** OCR A is monospaced and wide; at 124 pt useful session
+  titles still clipped around 10 characters. 144 pt fits ~12 characters and still leaves
+  ~650 pt of menu bar
   free on each side — and menus grow from the left edge while status items grow from the right, so the
   strip beside the notch is the last real estate either claims.
 - **Exactly two lines per session in the panel.** Identity and timing on the first,
@@ -118,7 +119,10 @@ echo '{"hook_event_name":"Stop"}' | python3 ~/.local/bin/claude-ntfy-notify.py; 
 - **The island never moves sideways.** Expanding used to widen each flank 108 → 150 pt, so
   the window's origin moved left while the SwiftUI content re-laid out on a different curve
   than the frame animation: the pill visibly slid as it opened. Flanks are a constant
-  124 pt and hover changes height only.
+  144 pt and hover changes height only.
+- **One process owns the island.** A non-blocking per-user file lock is acquired before
+  AppKit starts. Finder, raw-binary, and LaunchAgent launches therefore cannot create
+  overlapping windows; the kernel releases the lock automatically if the app crashes.
 - **Menu-bar visibility is polled every 1.5 s** as well as observed. Nothing is posted when
   the menu bar auto-hides or is revealed, and space-change notifications arrive before the
   window list reflects the new space.

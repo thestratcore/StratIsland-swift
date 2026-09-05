@@ -143,7 +143,7 @@ final class MenuBarVisibility {
     private func installMouseMonitor() {
         guard mouseMonitor == nil else { return }
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
-            MainActor.assumeIsolated {
+            Task { @MainActor [weak self] in
                 guard let self, let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 })
                 else { return }
                 let atTop = NSEvent.mouseLocation.y >= screen.frame.maxY - 4

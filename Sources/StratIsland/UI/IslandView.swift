@@ -7,7 +7,7 @@ struct IslandView: View {
     @Bindable var store: SessionStore
     let notchWidth: CGFloat
     let notchHeight: CGFloat
-    @Binding var expanded: Bool
+    let presentation: IslandPresentation
     /// Reports the panel's natural height so the window can size itself to the content.
     var onPanelHeight: (CGFloat) -> Void = { _ in }
 
@@ -24,7 +24,7 @@ struct IslandView: View {
                 rightFlank
                     .frame(width: flankWidth, height: notchHeight)
             }
-            if expanded {
+            if presentation.expanded {
                 ExpandedPanelView(store: store)
                     .frame(width: flankWidth * 2 + notchWidth)
                     .background(
@@ -47,7 +47,7 @@ struct IslandView: View {
         // Matches the window's own frame animation. Two different curves driving the same
         // motion is what made the open look unsteady; the window height is the motion now,
         // and the content only fades with it.
-        .animation(.easeOut(duration: 0.22), value: expanded)
+        .animation(.easeOut(duration: 0.22), value: presentation.expanded)
     }
 
     // MARK: - Left flank: the single most urgent session
@@ -62,7 +62,7 @@ struct IslandView: View {
                     Text(s.cli.glyph)
                         .font(Theme.ocr(9))
                         .foregroundStyle(Theme.textTertiary)
-                    Text(s.shortName(max: 10))
+                    Text(s.shortName(max: 12))
                         .font(Theme.ocr(10))
                         .foregroundStyle(Theme.textPrimary)
                         .lineLimit(1)

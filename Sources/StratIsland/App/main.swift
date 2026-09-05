@@ -3,6 +3,7 @@ import SwiftUI
 
 /// Holds the delegate for the process lifetime (NSApplication does not retain it).
 nonisolated(unsafe) var keepAlive: AnyObject?
+nonisolated(unsafe) var instanceGuard: SingleInstanceGuard?
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -72,6 +73,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 // Top-level code is nonisolated; the delegate and NSApplication are both main-actor.
 MainActor.assumeIsolated {
+    do {
+        guard let acquired = try SingleInstanceGuard.acquire() else {
+            Diagnostics.logger.notice("Another StratIsland instance is already running; exiting")
+            exit(EXIT_SUCCESS)
+        }
+        instanceGuard = acquired
+    } catch {
+        Diagnostics.logger.fault("Unable to enforce single-instance launch: \(error)")
+        exit(EXIT_FAILURE)
+    }
+
     let app = NSApplication.shared
     let delegate = AppDelegate()
     app.delegate = delegate

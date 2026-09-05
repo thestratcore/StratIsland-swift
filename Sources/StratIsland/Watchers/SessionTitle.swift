@@ -155,7 +155,7 @@ enum SessionTitle {
         return String(decoding: data, as: UTF8.self).split(separator: "\n").prefix(limit).map { $0 }
     }
 
-    /// Titles land in a 124 pt flank and a two-line row; newlines and runs of whitespace
+    /// Titles land in a 144 pt flank and a two-line row; newlines and runs of whitespace
     /// would wreck both. A prompt that starts with an absolute path — common with Codex,
     /// where the first message *is* the title — would otherwise spend the whole line on
     /// `/Users/admin/Documents/…`, so paths collapse to their last component.

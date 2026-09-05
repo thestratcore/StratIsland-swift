@@ -1,5 +1,12 @@
 import AppKit
+import Observation
 import SwiftUI
+
+@MainActor
+@Observable
+final class IslandPresentation {
+    var expanded = false
+}
 
 /// Owns the borderless panel that floats above the menu bar and keeps its frame locked to
 /// the physical cutout.
@@ -11,7 +18,8 @@ final class NotchWindowController: NSObject {
     private let store: SessionStore
     private let visibility: MenuBarVisibility
 
-    private var expanded = false
+    private let presentation = IslandPresentation()
+    private var expanded: Bool { presentation.expanded }
     private var panelHeight: CGFloat = 120
     private var collapseWork: DispatchWorkItem?
     /// Always on. See `startPointerTracking`.
@@ -82,13 +90,16 @@ final class NotchWindowController: NSObject {
                 store: store,
                 notchWidth: notch.width,
                 notchHeight: notch.height,
-                expanded: Binding(get: { [weak self] in self?.expanded ?? false },
-                                  set: { [weak self] in self?.setExpanded($0) }),
+                presentation: presentation,
                 onPanelHeight: { [weak self] h in self?.updatePanelHeight(h) }
             )
         )
 
         let view = NSHostingView(rootView: root)
+        // The controller is the sole owner of window geometry. The default hosting-view
+        // sizing options otherwise resize the panel back to the collapsed intrinsic height
+        // while the explicit frame animation is running.
+        view.sizingOptions = []
         // Non-activating: clicking the island must not steal focus from Terminal, since
         // its whole job is to send you back there.
         let p = NSPanel(
@@ -129,6 +140,7 @@ final class NotchWindowController: NSObject {
     private func applyFrame(animated: Bool) {
         guard let panel, let notch = notchRect else { return }
         let target = frame(for: expanded, notch: notch)
+        log("apply-frame animated=\(animated) current=\(panel.frame) target=\(target)")
         guard panel.frame != target else { return }
         if animated {
             NSAnimationContext.runAnimationGroup { ctx in
@@ -143,6 +155,7 @@ final class NotchWindowController: NSObject {
 
     private func updatePanelHeight(_ h: CGFloat) {
         let clamped = max(60, min(h, 460))
+        log("panel-height measured=\(h) clamped=\(clamped)")
         guard abs(clamped - panelHeight) > 0.5 else { return }
         panelHeight = clamped
         if expanded { applyFrame(animated: true) }
@@ -158,7 +171,10 @@ final class NotchWindowController: NSObject {
                 self.collapseWork = nil
                 guard let notch = self.notchRect else { return }
                 let expandedFrame = self.frame(for: true, notch: notch)
-                guard !hoverContains(NSEvent.mouseLocation, in: expandedFrame) else { return }
+                let pointer = NSEvent.mouseLocation
+                let inside = hoverContains(pointer, in: expandedFrame)
+                self.log("collapse-check pointer=\(pointer) target=\(expandedFrame) inside=\(inside)")
+                guard !inside else { return }
                 self.setExpanded(false)
             }
         }
@@ -168,7 +184,7 @@ final class NotchWindowController: NSObject {
 
     private func setExpanded(_ value: Bool) {
         guard expanded != value else { return }
-        expanded = value
+        presentation.expanded = value
         log("expanded=\(value)")
         applyFrame(animated: true)
     }
@@ -191,7 +207,7 @@ final class NotchWindowController: NSObject {
             .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
         ]
         let global = NSEvent.addGlobalMonitorForEvents(matching: events) { [weak self] _ in
-            MainActor.assumeIsolated { self?.evaluatePointer() }
+            Task { @MainActor [weak self] in self?.evaluatePointer() }
         }
         if let global { pointerMonitors.append(global) }
         let local = NSEvent.addLocalMonitorForEvents(matching: events) { [weak self] event in
@@ -227,7 +243,9 @@ final class NotchWindowController: NSObject {
             } else if collapseWork == nil {
                 scheduleCollapse(after: 0.2)
             }
-        } else if hoverContains(pointer, in: frame(for: false, notch: notch), margin: 0) {
+        } else {
+            let collapsedFrame = frame(for: false, notch: notch)
+            guard hoverContains(pointer, in: collapsedFrame, margin: 0) else { return }
             collapseWork?.cancel()
             collapseWork = nil
             store.acknowledgeAll()   // seeing it counts as acknowledging it
