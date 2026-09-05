@@ -7,9 +7,9 @@ Built for one question: which of my agents is working, which is finished, and wh
 blocked waiting on me — without cycling through panes. Local-only; it makes no network
 calls and writes no history to disk.
 
-![collapsed: one session on the left flank](docs/island-collapsed.png)
+![collapsed: one session on the left flank](docs/island-collapsed.jpg)
 
-![expanded: the panel drops below the cutout](docs/island-expanded.png)
+![expanded: the panel drops below the cutout](docs/island-expanded.jpg)
 
 ## What it shows
 
