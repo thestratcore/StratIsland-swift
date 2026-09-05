@@ -1,7 +1,12 @@
 # StratIsland
 
 A Dynamic Island for the Mac notch, showing the live state of Claude Code and Codex CLI
-sessions. Hover to expand, click a session to jump to the cmux surface that owns it.
+sessions running in [cmux](https://cmux.com). Hover to expand, click a session to jump to
+the surface that owns it.
+
+Built for one question: which of my agents is working, which is finished, and which is
+blocked waiting on me — without cycling through panes. Local-only; it makes no network
+calls and writes no history to disk.
 
 ![compact and expanded states](docs/island.png)
 
@@ -99,9 +104,9 @@ echo '{"hook_event_name":"Stop"}' | python3 ~/.local/bin/claude-ntfy-notify.py; 
   is two flanks in the menu bar plus a panel that drops below.
 - **144 pt flanks, in both states.** OCR A is monospaced and wide; at 124 pt useful session
   titles still clipped around 10 characters. 144 pt fits ~12 characters and still leaves
-  ~650 pt of menu bar
-  free on each side — and menus grow from the left edge while status items grow from the right, so the
-  strip beside the notch is the last real estate either claims.
+  ~650 pt of menu bar free on each side — and menus grow from the left edge while status
+  items grow from the right, so the strip beside the notch is the last real estate either
+  one claims.
 - **Exactly two lines per session in the panel.** Identity and timing on the first,
   context on the second. A variable-height row made the list jump whenever a `detail`
   string appeared or a subagent spawned; `fan[]` is now a count, not a list.
@@ -147,13 +152,6 @@ echo '{"hook_event_name":"Stop"}' | python3 ~/.local/bin/claude-ntfy-notify.py; 
   the menu bar auto-hides or is revealed, and space-change notifications arrive before the
   window list reflects the new space.
 
-### Debugging
-
-    STRATISLAND_DEBUG_LOG=1 ./build/StratIsland.app/Contents/MacOS/StratIsland
-
-logs expand/collapse and every change in the visibility decision to stderr.
-`STRATISLAND_DEBUG_EXPANDED=1` pins the panel open.
-
 - **OCR A for structure, SF Mono for prose.** Names, states, counts and timings are OCR A.
   The `detail` line is a sentence written for a human and is unreadable in OCR A at 10 pt.
 - **The pulse runs on CoreAnimation, not SwiftUI.** A `repeatForever` SwiftUI animation
@@ -164,6 +162,16 @@ logs expand/collapse and every change in the visibility decision to stderr.
 - **Built-in display only.** No synthetic notch on external monitors — a notch-shaped
   black blob on a screen with no notch reads as a bug, not a feature.
 
+### Debugging
+
+    STRATISLAND_DEBUG_LOG=1 ./build/StratIsland.app/Contents/MacOS/StratIsland
+
+logs expand/collapse and every change in the visibility decision to stderr, and
+`STRATISLAND_DEBUG_EXPANDED=1` pins the panel open. Hook deliveries and component health go
+to unified logging instead, since they matter in a normal run:
+
+    log show --predicate 'subsystem == "com.stratcore.stratisland"' --last 30m --info
+
 ## Known limits
 
 - **Unverified:** whether Claude reports `busy` or `idle` while a permission prompt is on
@@ -171,10 +179,16 @@ logs expand/collapse and every change in the visibility decision to stderr.
   on (a `Stop` push, a changed action, or a not-working → working transition), with a
   15-minute safety expiry. If the state ever looks sticky, that is the code to revisit —
   `SessionStore.isUnblocked`.
+- **Unverified under cmux:** whether Codex's `notify` program still fires when cmux
+  launches it with `-c hooks.*`. Its `~/.codex/config.toml` entry is left intact, so it
+  should — but no cmux-hosted Codex completion has been observed yet, and `notify` is the
+  only completion signal Codex has.
+- A session started outside cmux carries no surface id. It is still shown and still
+  counted; clicking it falls back to the Terminal tty path, and if that cannot serve it
+  either, to simply raising whichever host is running.
 - Codex process-to-rollout binding depends on undocumented `session_meta` fields. If that
   format changes, the app degrades to working-directory and newest-activity matching and
   reports parsing failures through its health diagnostics.
-- Debug: `STRATISLAND_DEBUG_EXPANDED=1` pins the panel open.
 
 ## Validation
 
@@ -183,6 +197,12 @@ swift build -Xswiftc -warnings-as-errors
 swift test -Xswiftc -warnings-as-errors
 ```
 
-The tests use injected time, scheduling, and sound boundaries. They cover completion and
+The tests use injected time, scheduling, and sound boundaries, so they cover completion and
 acknowledgement, blocked-state clearing and expiry, exited-session reaping, Codex completion
 routing, and injected-prompt filtering without wall-clock sleeps or audio side effects.
+
+Two of them reach outside that: the `KERN_PROCARGS2` parser is checked against a hand-built
+buffer (getting the argv skip wrong yields an empty environment, which reads exactly like
+"this session isn't in cmux"), and — when the suite is run from a cmux pane — the resolver
+is asked to find the test binary's own surface by walking up the parent chain, which is the
+same shape as a background Claude job under its daemon.
