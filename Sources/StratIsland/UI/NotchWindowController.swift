@@ -28,7 +28,7 @@ final class NotchWindowController: NSObject {
     /// low-frequency position check is the deterministic backstop, not the primary path.
     private var pointerWatchdog: DispatchSourceTimer?
     private var lastShouldShow: Bool?
-    private var terminalRunning = false
+    private var hostRunning = false
     /// While an attention flash is on screen, the pointer's position is irrelevant.
     private var attentionUntil: Date?
     private let debugLog = ProcessInfo.processInfo.environment["STRATISLAND_DEBUG_LOG"] == "1"
@@ -65,8 +65,8 @@ final class NotchWindowController: NSObject {
         )
         visibility.onChange = { [weak self] in self?.refreshVisibility() }
         let workspace = NSWorkspace.shared
-        terminalRunning = workspace.runningApplications.contains {
-            $0.bundleIdentifier == "com.apple.Terminal"
+        hostRunning = workspace.runningApplications.contains {
+            $0.bundleIdentifier.map(Self.hostBundleIDs.contains) ?? false
         }
         workspace.notificationCenter.addObserver(
             self, selector: #selector(workspaceApplicationChanged(_:)),
@@ -286,14 +286,14 @@ final class NotchWindowController: NSObject {
 
     func refreshVisibility() {
         guard let panel else { return }
-        // Terminal-gated, with one override: never hide something that is blocked on the
+        // Host-gated, with one override: never hide something that is blocked on the
         // user or has just finished — losing that is the failure that kills trust.
-        let shouldShow = (terminalRunning || store.hasAttention)
+        let shouldShow = (hostRunning || store.hasAttention)
             && !visibility.menuBarHidden
             && notchRect != nil
         if shouldShow != lastShouldShow {
             lastShouldShow = shouldShow
-            log("visibility terminal=\(terminalRunning) attention=\(store.hasAttention) "
+            log("visibility host=\(hostRunning) attention=\(store.hasAttention) "
                 + "menuBarHidden=\(visibility.menuBarHidden) -> show=\(shouldShow)")
         }
 
@@ -308,12 +308,22 @@ final class NotchWindowController: NSObject {
         evaluatePointer()
     }
 
+    /// The apps that host agent sessions. cmux is the one in use; Terminal.app stays in
+    /// the set so a session started there still lifts the gate.
+    static let hostBundleIDs: Set<String> = [CmuxControl.bundleID, "com.apple.Terminal"]
+
     @objc private func workspaceApplicationChanged(_ notification: Notification) {
         guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
                 as? NSRunningApplication,
-              app.bundleIdentifier == "com.apple.Terminal"
+              let bundleID = app.bundleIdentifier,
+              Self.hostBundleIDs.contains(bundleID)
         else { return }
-        terminalRunning = notification.name == NSWorkspace.didLaunchApplicationNotification
+        // Either host quitting leaves the other one's sessions on screen, so recompute the
+        // whole answer instead of trusting this one notification.
+        hostRunning = NSWorkspace.shared.runningApplications.contains {
+            guard let id = $0.bundleIdentifier, Self.hostBundleIDs.contains(id) else { return false }
+            return !$0.isTerminated
+        }
         refreshVisibility()
     }
 

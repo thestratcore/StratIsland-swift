@@ -24,7 +24,7 @@ struct ExpandedPanelView: View {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             store.acknowledge(session.id)
-                            TerminalFocuser.focus(session: session)
+                            SessionFocuser.focus(session: session)
                         }
                     if session.id != store.sessions.last?.id {
                         Divider().overlay(Theme.hairline)

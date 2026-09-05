@@ -1,7 +1,7 @@
 # StratIsland
 
 A Dynamic Island for the Mac notch, showing the live state of Claude Code and Codex CLI
-sessions. Hover to expand, click a session to jump to the Terminal tab that owns it.
+sessions. Hover to expand, click a session to jump to the cmux surface that owns it.
 
 ![compact and expanded states](docs/island.png)
 
@@ -32,7 +32,9 @@ Runtime failures are also written through unified logging under subsystem
 - A Mac with a notch (the geometry is derived from `NSScreen.auxiliaryTop*Area`; on a
   machine without one the island simply never appears)
 - macOS 14+, Swift 6 language mode
-- Terminal.app — the click-to-focus path uses its AppleScript `tty of tab`
+- [cmux](https://cmux.com) — the host it is built around; click-to-focus addresses a
+  session by the surface id cmux exports into it. Terminal.app still works as a fallback
+  for sessions started outside cmux, via its AppleScript `tty of tab`
 
 ## Install
 
@@ -43,8 +45,10 @@ Runtime failures are also written through unified logging under subsystem
 open build/StratIsland.app
 ```
 
-Two one-time permission prompts appear on first use: **Automation** (to focus a Terminal
-tab) the first time you click a session.
+No permission prompt is needed for cmux: its control socket accepts a request from any
+process running as you, so the app talks to it directly. Clicking a session that was
+started in **Terminal.app** instead falls back to AppleScript, which does ask for
+**Automation** the first time.
 
 ## How it gets its data
 
@@ -63,6 +67,13 @@ are bound one-to-one to rollouts by working directory and kernel process start t
 rollout session ID makes completion routing deterministic when several sessions share a
 directory. Codex sessions carry no detail line. Deep rollout parsing would depend on an
 undocumented format and is deliberately excluded.
+
+**cmux** supplies the binding between a session and the place it is running. It exports
+`CMUX_SURFACE_ID` (and `CMUX_WORKSPACE_ID`, `CMUX_AGENT_LAUNCH_KIND`) into every process it
+launches, so the pid the watchers already hold is enough to address the pane — read once
+per process out of `KERN_PROCARGS2`, with a walk up the parent chain for background jobs
+the daemon owns. Focusing is then `cmux rpc surface.focus`, followed by `window.focus` on
+the window the response names.
 
 **Push hooks** cover what files cannot. A `Notification` hook is what makes `NEEDS YOU`
 possible at all: in the session file, "waiting for your permission" and "finished" both
@@ -120,6 +131,15 @@ echo '{"hook_event_name":"Stop"}' | python3 ~/.local/bin/claude-ntfy-notify.py; 
   the window's origin moved left while the SwiftUI content re-laid out on a different curve
   than the frame animation: the pill visibly slid as it opened. Flanks are a constant
   144 pt and hover changes height only.
+- **A session is addressed, not searched for.** Terminal focusing had to match a
+  `/dev/ttysNNN` path against every tab of every window over AppleScript, and background
+  sessions have no tab at all. cmux hands each process its own surface id, so focusing is
+  one RPC with an exact address — and because the control socket authorises by user rather
+  than by an Automation grant (verified from a scrubbed `env -i` environment, which is
+  what a LaunchAgent launch has), the permission prompt disappears with it.
+- **Both hosts lift the visibility gate.** The island shows while cmux *or* Terminal.app is
+  running, so a session started in either is never invisible; the same one-line override
+  still keeps a blocked or just-finished session on screen regardless.
 - **One process owns the island.** A non-blocking per-user file lock is acquired before
   AppKit starts. Finder, raw-binary, and LaunchAgent launches therefore cannot create
   overlapping windows; the kernel releases the lock automatically if the app crashes.

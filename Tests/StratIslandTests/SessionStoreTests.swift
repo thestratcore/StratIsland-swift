@@ -104,7 +104,8 @@ final class SessionStoreTests: XCTestCase {
             detail: detail,
             startedAt: now,
             tokens: nil,
-            fan: []
+            fan: [],
+            surfaceID: nil
         )
     }
 }

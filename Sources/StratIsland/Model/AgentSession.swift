@@ -51,6 +51,9 @@ struct AgentSession: Identifiable, Equatable {
     var lastActivity: Date
     var tokens: Int?
     var fan: [FanItem]
+    /// Address of the cmux surface that hosts this session, used to focus it. Nil for a
+    /// session started outside cmux, which falls back to the Terminal tty path.
+    var surfaceID: String?
     /// When the session entered `doneUnacked`; used for the 60 s auto-ack.
     var doneAt: Date?
 

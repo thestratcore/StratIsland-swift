@@ -108,7 +108,8 @@ final class CodexWatcher {
                 detail: nil,
                 startedAt: started,
                 tokens: nil,
-                fan: []
+                fan: [],
+                surfaceID: CmuxBindingResolver.binding(forPID: pid)?.surfaceID
             ))
         }
         onUpdate(out)

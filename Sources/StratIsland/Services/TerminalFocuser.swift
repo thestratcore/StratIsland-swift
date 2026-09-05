@@ -2,23 +2,28 @@ import AppKit
 
 /// Brings the Terminal tab that owns a session to the front.
 ///
-/// Terminal.app is the only terminal on this machine, and its AppleScript dictionary
-/// exposes `tty of tab`, so the whole thing reduces to matching a device path. Background
-/// sessions run on a pty owned by the Claude daemon rather than on a Terminal tab, so we
-/// walk up the parent chain until a tty resolves to something Terminal knows about.
+/// This is the fallback path now — cmux addresses a session by surface id, which needs no
+/// AppleScript and no Automation permission. It stays for sessions started outside cmux:
+/// Terminal's dictionary exposes `tty of tab`, so the whole thing reduces to matching a
+/// device path. Background sessions run on a pty owned by the Claude daemon rather than on
+/// a Terminal tab, so we walk up the parent chain until a tty resolves to something
+/// Terminal knows about.
 @MainActor
 enum TerminalFocuser {
 
-    static func focus(session: AgentSession) {
-        guard let pid = session.pid else { return }
-        guard let tty = resolveTTY(startingAt: pid) else {
-            // No tty anywhere up the chain: the best we can do is raise Terminal.
-            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") {
-                NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
-            }
-            return
-        }
+    /// Returns false when this path cannot serve the session at all — Terminal is not
+    /// running, or nothing up the parent chain has a controlling terminal — so the caller
+    /// can try something else rather than triggering an Automation prompt for nothing.
+    @discardableResult
+    static func focus(session: AgentSession) -> Bool {
+        guard isRunning, let pid = session.pid else { return false }
+        guard let tty = resolveTTY(startingAt: pid) else { return false }
         run(script: focusScript(tty: tty))
+        return true
+    }
+
+    static var isRunning: Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Terminal").isEmpty
     }
 
     /// Walk pid -> ppid until a controlling terminal appears (max 8 hops).

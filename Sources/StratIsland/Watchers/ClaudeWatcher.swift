@@ -128,9 +128,11 @@ final class ClaudeWatcher {
                 detail: (detail?.isEmpty ?? true) ? nil : detail,
                 startedAt: startedMs > 0 ? Date(timeIntervalSince1970: startedMs / 1000) : Date(),
                 tokens: tokens,
-                fan: fan
+                fan: fan,
+                surfaceID: CmuxBindingResolver.binding(forPID: pid)?.surfaceID
             ))
         }
+        CmuxBindingResolver.pruneDeadProcesses()
         if malformedFiles > 0 {
             health.report(.claudeWatcher, "Rejected \(malformedFiles) malformed session file(s)")
         } else {

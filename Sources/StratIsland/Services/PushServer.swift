@@ -99,6 +99,13 @@ final class PushServer {
                 sessionId: obj["session_id"] as? String,
                 cwd: obj["cwd"] as? String
             )
+            // cmux launches Claude with its own hook set passed inline as `--settings`,
+            // so whether the hooks in ~/.claude/settings.json still reach us is a property
+            // of how Claude merges settings sources, not something the app can assume.
+            // This line is how that gets answered on a live machine.
+            Diagnostics.logger.info(
+                "Push received: \(cli.rawValue, privacy: .public)/\(ev.rawValue, privacy: .public)"
+            )
             handler(event)
         }
     }

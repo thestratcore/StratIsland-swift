@@ -37,6 +37,8 @@ struct SessionSnapshot {
     let startedAt: Date
     let tokens: Int?
     let fan: [FanItem]
+    /// The cmux surface hosting this session, when cmux launched it.
+    let surfaceID: String?
 }
 
 /// Single source of truth. Watchers push raw snapshots in; this merges them, derives the
@@ -182,6 +184,7 @@ final class SessionStore {
                 lastActivity: now(),
                 tokens: snap.tokens,
                 fan: snap.fan,
+                surfaceID: snap.surfaceID,
                 doneAt: state == .doneUnacked ? (prior?.doneAt ?? now()) : nil
             )
             if state != .working { s.fan = [] }
