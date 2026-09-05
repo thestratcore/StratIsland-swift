@@ -40,6 +40,26 @@ enum SessionState: String, Codable, CaseIterable {
         }
     }
 
+    /// Flank form. `label` is what the expanded panel says; this is what fits beside the
+    /// cutout, where 144 pt of OCR A is roughly twelve characters.
+    var shortLabel: String {
+        switch self {
+        case .needsInput:  return "NEEDS"
+        case .doneUnacked: return "DONE"
+        case .working:     return "WORK"
+        case .idle:        return "IDLE"
+        case .exited:      return "EXIT"
+        }
+    }
+
     /// Whether a dot in this state should pulse.
     var pulses: Bool { self == .working || self == .needsInput }
+}
+
+/// One state and how many live sessions are in it. The collapsed island reads as a tally
+/// rather than as a name, so this is the unit the flank is built from.
+struct StateCount: Equatable, Identifiable {
+    let state: SessionState
+    let count: Int
+    var id: SessionState { state }
 }

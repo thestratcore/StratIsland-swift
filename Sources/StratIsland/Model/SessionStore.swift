@@ -328,6 +328,14 @@ final class SessionStore {
         sessions.contains { $0.state == .needsInput || $0.state == .doneUnacked }
     }
 
+    /// Live sessions tallied by state, most urgent first. `exited` is excluded: a session on
+    /// its way to `recent` is not something the collapsed island should still be counting.
+    var stateCounts: [StateCount] {
+        Dictionary(grouping: sessions.filter { $0.state != .exited }, by: \.state)
+            .map { StateCount(state: $0.key, count: $0.value.count) }
+            .sorted { $0.state.urgency < $1.state.urgency }
+    }
+
     var primary: AgentSession? { sessions.first }
 
     var secondary: [AgentSession] { Array(sessions.dropFirst()) }

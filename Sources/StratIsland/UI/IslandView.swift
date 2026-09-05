@@ -50,30 +50,43 @@ struct IslandView: View {
         .animation(.easeOut(duration: 0.22), value: presentation.expanded)
     }
 
-    // MARK: - Left flank: the single most urgent session
+    // MARK: - Left flank: the tally
 
+    /// Collapsed, the question is "does anything want me", not "which session is this" — so
+    /// the flank counts states instead of naming one session. Names are what hovering is for.
     private var leftFlank: some View {
         ZStack(alignment: .trailing) {
             FlankShape(outerEdge: .leading, radius: Theme.flankCornerRadius)
                 .fill(Theme.panelFill)
             HStack(spacing: 5) {
-                if let s = store.primary {
-                    StateDot(state: s.state)
-                    Text(s.cli.glyph)
-                        .font(Theme.ocr(9))
-                        .foregroundStyle(Theme.textTertiary)
-                    Text(s.shortName(max: 12))
-                        .font(Theme.ocr(10))
-                        .foregroundStyle(Theme.textPrimary)
-                        .lineLimit(1)
+                let counts = store.stateCounts
+                if let lead = counts.first {
+                    // The most urgent state present owns the dot, so `working` and
+                    // `needsInput` keep the pulse that makes them readable peripherally.
+                    StateDot(state: lead.state)
+                    // Longest first: SwiftUI takes the first candidate that fits the flank,
+                    // which beats guessing a character budget for a proportional-ish face.
+                    ViewThatFits(in: .horizontal) {
+                        tally(counts, .full)
+                        tally(counts, .short)
+                        tally(counts, .leadOnly)
+                    }
                 } else {
-                    Text("—")
-                        .font(Theme.ocr(10))
+                    Text("\u{2014}")
+                        .font(Theme.ocr(8))
                         .foregroundStyle(Theme.textTertiary)
                 }
             }
             .padding(.trailing, 8)
         }
+    }
+
+    private func tally(_ counts: [StateCount], _ style: SummaryStyle) -> some View {
+        Text(flankSummary(counts, style: style))
+            .font(Theme.ocr(8))
+            .foregroundStyle(Theme.textPrimary)
+            .lineLimit(1)
+            .fixedSize()
     }
 
     // MARK: - Right flank: everything else, as dots
@@ -89,22 +102,45 @@ struct IslandView: View {
                 }
                 if rest.count > 4 {
                     Text("+\(rest.count - 4)")
-                        .font(Theme.ocr(9))
+                        .font(Theme.ocr(7))
                         .foregroundStyle(Theme.textSecondary)
                 }
                 if rest.isEmpty, let s = store.primary {
                     Text(s.state == .working ? formatElapsed(s.elapsed) : s.state.label)
-                        .font(Theme.ocr(9))
+                        .font(Theme.ocr(7))
                         .foregroundStyle(Theme.textSecondary)
                         .lineLimit(1)
                 }
                 if store.muted {
                     Text("M")
-                        .font(Theme.ocr(8))
+                        .font(Theme.ocr(6))
                         .foregroundStyle(Theme.textTertiary)
                 }
             }
             .padding(.leading, 8)
         }
+    }
+}
+
+/// The three widths the flank tally is offered at, longest first.
+enum SummaryStyle: CaseIterable {
+    case full       // "2 WORKING \u{00B7} 1 IDLE"
+    case short      // "2 WORK \u{00B7} 1 IDLE"
+    case leadOnly   // "2 WORK +1"
+}
+
+/// Renders a tally at one of the three widths. Counts arrive most-urgent-first and that
+/// order is preserved: the leading group is the one the dot and the sound are about.
+func flankSummary(_ counts: [StateCount], style: SummaryStyle) -> String {
+    guard let lead = counts.first else { return "\u{2014}" }
+    switch style {
+    case .full:
+        return counts.map { "\($0.count) \($0.state.label)" }.joined(separator: " \u{00B7} ")
+    case .short:
+        return counts.map { "\($0.count) \($0.state.shortLabel)" }.joined(separator: " \u{00B7} ")
+    case .leadOnly:
+        let rest = counts.dropFirst().reduce(0) { $0 + $1.count }
+        let head = "\(lead.count) \(lead.state.shortLabel)"
+        return rest == 0 ? head : head + " +\(rest)"
     }
 }

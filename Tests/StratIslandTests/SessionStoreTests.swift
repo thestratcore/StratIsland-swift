@@ -85,6 +85,58 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(store.sessions.first { $0.sessionId == "b" }?.state, .doneUnacked)
     }
 
+    // MARK: - The collapsed tally
+
+    func testStateCountsGroupByStateMostUrgentFirst() {
+        store.apply(
+            [
+                snapshot(id: "claude:1", sessionId: "a", busy: true),
+                snapshot(id: "claude:2", sessionId: "b", busy: true),
+                snapshot(id: "claude:3", sessionId: "c", busy: false),
+            ],
+            for: .claude
+        )
+
+        XCTAssertEqual(
+            store.stateCounts,
+            [StateCount(state: .working, count: 2), StateCount(state: .idle, count: 1)]
+        )
+    }
+
+    /// An exited session lingers for the reap delay so the row doesn't vanish under the
+    /// cursor. It must not still be counted in the menu bar while it does.
+    func testStateCountsExcludeExitedSessions() {
+        store.apply([snapshot(id: "claude:1", sessionId: "a", busy: false)], for: .claude)
+        store.apply([], for: .claude)
+
+        XCTAssertEqual(store.sessions.single?.state, .exited)
+        XCTAssertEqual(store.stateCounts, [])
+    }
+
+    func testFlankSummaryRendersEachWidth() {
+        let counts = [
+            StateCount(state: .needsInput, count: 1),
+            StateCount(state: .working, count: 2),
+            StateCount(state: .idle, count: 3),
+        ]
+        XCTAssertEqual(flankSummary(counts, style: .full), "1 NEEDS YOU \u{00B7} 2 WORKING \u{00B7} 3 IDLE")
+        XCTAssertEqual(flankSummary(counts, style: .short), "1 NEEDS \u{00B7} 2 WORK \u{00B7} 3 IDLE")
+        // The narrowest form keeps the urgent group and folds the rest into a count.
+        XCTAssertEqual(flankSummary(counts, style: .leadOnly), "1 NEEDS +5")
+    }
+
+    func testFlankSummaryWithOneGroupHasNoOverflow() {
+        let counts = [StateCount(state: .idle, count: 1)]
+        XCTAssertEqual(flankSummary(counts, style: .full), "1 IDLE")
+        XCTAssertEqual(flankSummary(counts, style: .leadOnly), "1 IDLE")
+    }
+
+    func testFlankSummaryIsEmDashWhenNothingIsRunning() {
+        for style in SummaryStyle.allCases {
+            XCTAssertEqual(flankSummary([], style: style), "\u{2014}")
+        }
+    }
+
     private func snapshot(
         id: String = "claude:1",
         cli: CLIKind = .claude,

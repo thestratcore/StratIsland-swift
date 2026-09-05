@@ -62,7 +62,9 @@ struct AgentSession: Identifiable, Equatable {
         return base.isEmpty ? "~" : base
     }
 
-    /// Compact-state label: uppercased, truncated to fit an 80 pt flank in OCR A.
+    /// Uppercased and truncated to `max` characters, ellipsis included. The bound belongs
+    /// to the caller: the expanded panel has room for a title, the collapsed flank does not
+    /// show one at all.
     func shortName(max: Int = 11) -> String {
         let raw = name.isEmpty ? project : name
         let up = raw.uppercased()

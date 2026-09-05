@@ -43,7 +43,7 @@ struct ExpandedPanelView: View {
                 ForEach(store.recent.prefix(5)) { s in
                     HStack(spacing: 7) {
                         StateDot(state: .exited, size: 5)
-                        Text(s.shortName(max: 18))
+                        Text(s.shortName(max: 36))
                             .font(Theme.ocr(9))
                             .foregroundStyle(Theme.textTertiary)
                         Spacer()
@@ -84,7 +84,7 @@ private struct SessionRow: View {
                 Text(session.cli.glyph)
                     .font(Theme.ocr(10))
                     .foregroundStyle(Theme.textTertiary)
-                Text(session.shortName(max: 22))
+                Text(session.shortName(max: 44))
                     .font(Theme.ocr(11))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
