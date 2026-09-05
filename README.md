@@ -1,8 +1,7 @@
 # StratIsland
 
 A Dynamic Island for the Mac notch, showing the live state of Claude Code and Codex CLI
-sessions running in [cmux](https://cmux.com). Hover to expand, click a session to jump to
-the surface that owns it.
+sessions. Hover to expand, click a session to jump to the pane that owns it.
 
 Built for one question: which of my agents is working, which is finished, and which is
 blocked waiting on me — without cycling through panes. Local-only; it makes no network
@@ -37,9 +36,18 @@ Runtime failures are also written through unified logging under subsystem
 - A Mac with a notch (the geometry is derived from `NSScreen.auxiliaryTop*Area`; on a
   machine without one the island simply never appears)
 - macOS 14+, Swift 6 language mode
-- [cmux](https://cmux.com) — the host it is built around; click-to-focus addresses a
-  session by the surface id cmux exports into it. Terminal.app still works as a fallback
-  for sessions started outside cmux, via its AppleScript `tty of tab`
+- **A terminal host: [cmux](https://cmux.com) or Terminal.app.** Both are supported, and
+  sessions in either are shown side by side — the state you see comes from the CLIs
+  themselves, not from the host, so nothing about the display depends on which one you use.
+  The difference is only in how a click finds its way back:
+
+  | | cmux | Terminal.app |
+  |---|---|---|
+  | Click-to-focus | `surface.focus` RPC, exact | AppleScript `tty of tab` match |
+  | Permission prompt | none | **Automation**, once |
+  | Background Claude jobs | focusable | not focusable — they own no tab |
+
+  If you use neither, everything except click-to-focus still works.
 
 ## Install
 
@@ -50,10 +58,11 @@ Runtime failures are also written through unified logging under subsystem
 open build/StratIsland.app
 ```
 
-No permission prompt is needed for cmux: its control socket accepts a request from any
-process running as you, so the app talks to it directly. Clicking a session that was
-started in **Terminal.app** instead falls back to AppleScript, which does ask for
-**Automation** the first time.
+`install-hooks.sh` installs `stratisland-notify.py` to `~/.local/bin`, adds `Stop` and
+`Notification` hooks to `~/.claude/settings.json`, sets `notify` in `~/.codex/config.toml`,
+and then checks the socket end to end and tells you what arrived. It backs up every file it
+touches. Codex allows exactly one `notify` program, so an entry you already have is
+reported rather than overwritten — pass `--force` to replace it.
 
 ## How it gets its data
 
@@ -82,20 +91,17 @@ the window the response names.
 
 **Push hooks** cover what files cannot. A `Notification` hook is what makes `NEEDS YOU`
 possible at all: in the session file, "waiting for your permission" and "finished" both
-read as `idle`. Both hook scripts write one line of JSON to a Unix socket at
-`~/Library/Application Support/StratIsland/push.sock`.
+read as `idle`. Codex's `notify` program is the only completion signal it publishes.
 
-### The ntfy scripts are safe
-
-`install-hooks.sh` replaces `~/.local/bin/{claude,codex}-ntfy-notify.py` (backing up the
-originals). The ntfy.sh POST is unchanged and runs **first**; the socket write happens
-after it, non-blocking, wrapped in its own bare `except`. A dead app, a stale socket, or a
-bug in the emit can never cost you a phone notification. Verify any time with:
+Both are served by one script, `scripts/stratisland-notify.py`, which writes a single line
+of JSON to a Unix socket at `~/Library/Application Support/StratIsland/push.sock` and does
+nothing else — no network, no dependencies beyond the standard library. It fails silently
+and fast by design: a hook that blocks delays the CLI it is attached to, and a hook that
+raises writes noise into your terminal, so a dead app or a stale socket simply exits 0.
+Check it any time with:
 
 ```sh
-pkill -f StratIsland
-rm -f ~/Library/Application\ Support/StratIsland/push.sock
-echo '{"hook_event_name":"Stop"}' | python3 ~/.local/bin/claude-ntfy-notify.py; echo $?
+python3 ~/.local/bin/stratisland-notify.py --self-test
 ```
 
 ## Design notes
@@ -142,8 +148,8 @@ echo '{"hook_event_name":"Stop"}' | python3 ~/.local/bin/claude-ntfy-notify.py; 
   one RPC with an exact address — and because the control socket authorises by user rather
   than by an Automation grant (verified from a scrubbed `env -i` environment, which is
   what a LaunchAgent launch has), the permission prompt disappears with it.
-- **Both hosts lift the visibility gate.** The island shows while cmux *or* Terminal.app is
-  running, so a session started in either is never invisible; the same one-line override
+- **Either host lifts the visibility gate.** The island shows while cmux *or* Terminal.app
+  is running, so a session started in either is never invisible; the same one-line override
   still keeps a blocked or just-finished session on screen regardless.
 - **One process owns the island.** A non-blocking per-user file lock is acquired before
   AppKit starts. Finder, raw-binary, and LaunchAgent launches therefore cannot create
