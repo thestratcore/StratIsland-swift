@@ -337,9 +337,24 @@ final class NotchWindowController: NSObject {
 
     @objc private func screensChanged() {
         guard let notch = notchRect else {
+            collapseNow()
             panel?.orderOut(nil)
             return
         }
+        if panel == nil {
+            build()
+            refreshVisibility()
+            return
+        }
+        hosting?.rootView = AnyView(
+            IslandView(
+                store: store,
+                notchWidth: notch.width,
+                notchHeight: notch.height,
+                presentation: presentation,
+                onPanelHeight: { [weak self] h in self?.updatePanelHeight(h) }
+            )
+        )
         panel?.setFrame(frame(for: expanded, notch: notch), display: true)
         refreshVisibility()
     }

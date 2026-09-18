@@ -126,7 +126,9 @@ final class ClaudeWatcher {
                 cwd: cwd,
                 busy: busy,
                 detail: (detail?.isEmpty ?? true) ? nil : detail,
-                startedAt: startedMs > 0 ? Date(timeIntervalSince1970: startedMs / 1000) : Date(),
+                startedAt: startedMs > 0
+                    ? Date(timeIntervalSince1970: startedMs / 1000)
+                    : (processStartDate(pid) ?? Date()),
                 tokens: tokens,
                 fan: fan,
                 surfaceID: CmuxBindingResolver.binding(forPID: pid)?.surfaceID

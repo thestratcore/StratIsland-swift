@@ -85,6 +85,21 @@ final class SessionStoreTests: XCTestCase {
         XCTAssertEqual(store.sessions.first { $0.sessionId == "b" }?.state, .doneUnacked)
     }
 
+    func testCodexCompletionSurvivesStaleBusySnapshot() {
+        let initial = snapshot(id: "codex:1", cli: .codex, sessionId: "a", busy: true)
+        store.apply([initial], for: .codex)
+        store.applyPush(PushEvent(cli: .codex, event: .stop, sessionId: "a", cwd: "/tmp/a"))
+        let stale = snapshot(id: "codex:1", cli: .codex, sessionId: "a", busy: true)
+        store.apply([stale], for: .codex)
+        XCTAssertEqual(store.sessions.single?.state, .doneUnacked)
+    }
+
+    func testCodexCompletionWithUnknownIDDoesNotCompleteAnotherSession() {
+        store.apply([snapshot(id: "codex:1", cli: .codex, sessionId: "a", busy: true)], for: .codex)
+        store.applyPush(PushEvent(cli: .codex, event: .stop, sessionId: "missing", cwd: "/tmp/a"))
+        XCTAssertEqual(store.sessions.single?.state, .working)
+    }
+
     // MARK: - The collapsed tally
 
     func testStateCountsGroupByStateMostUrgentFirst() {

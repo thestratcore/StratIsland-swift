@@ -77,9 +77,11 @@ struct AgentSession: Identifiable, Equatable {
     var elapsed: TimeInterval { Date().timeIntervalSince(startedAt) }
 
     static func == (a: AgentSession, b: AgentSession) -> Bool {
-        a.id == b.id && a.state == b.state && a.detail == b.detail
-            && a.tokens == b.tokens && a.fan == b.fan && a.name == b.name
-            && a.doneAt == b.doneAt
+        a.id == b.id && a.cli == b.cli && a.kind == b.kind && a.pid == b.pid
+            && a.sessionId == b.sessionId && a.name == b.name && a.cwd == b.cwd
+            && a.state == b.state && a.detail == b.detail
+            && a.startedAt == b.startedAt && a.tokens == b.tokens && a.fan == b.fan
+            && a.surfaceID == b.surfaceID && a.doneAt == b.doneAt
     }
 }
 

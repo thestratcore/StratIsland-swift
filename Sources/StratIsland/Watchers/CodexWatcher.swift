@@ -109,7 +109,8 @@ final class CodexWatcher {
                 startedAt: started,
                 tokens: nil,
                 fan: [],
-                surfaceID: CmuxBindingResolver.binding(forPID: pid)?.surfaceID
+                surfaceID: CmuxBindingResolver.binding(forPID: pid)?.surfaceID,
+                activityAt: mine?.mtime
             ))
         }
         onUpdate(out)
@@ -171,7 +172,7 @@ final class CodexWatcher {
     /// The first record of a rollout is `session_meta`, which carries the working directory.
     private func metadata(ofRollout path: String, fallbackDate: Date) -> RolloutMetadata {
         if let hit = rolloutMetadata[path] { return hit }
-        var result = RolloutMetadata(cwd: "", sessionId: nil, startedAt: fallbackDate)
+        var result: RolloutMetadata?
         if let handle = FileHandle(forReadingAtPath: path) {
             defer { try? handle.close() }
             if let data = try? handle.read(upToCount: 64 * 1024),
@@ -180,14 +181,14 @@ final class CodexWatcher {
                let payload = obj["payload"] as? [String: Any] {
                 let timestamp = (payload["timestamp"] as? String)
                     .flatMap { ISO8601DateFormatter().date(from: $0) }
-                result = RolloutMetadata(
+                let parsed = RolloutMetadata(
                     cwd: payload["cwd"] as? String ?? "",
                     sessionId: payload["id"] as? String ?? payload["session_id"] as? String,
                     startedAt: timestamp ?? fallbackDate
                 )
+                if !parsed.cwd.isEmpty, parsed.sessionId != nil { result = parsed }
             }
         }
-        rolloutMetadata[path] = result
-        return result
+        return result ?? RolloutMetadata(cwd: "", sessionId: nil, startedAt: fallbackDate)
     }
 }

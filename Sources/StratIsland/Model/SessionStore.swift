@@ -39,6 +39,17 @@ struct SessionSnapshot {
     let fan: [FanItem]
     /// The cmux surface hosting this session, when cmux launched it.
     let surfaceID: String?
+    /// Latest rollout write attributable to this process, when available.
+    let activityAt: Date?
+
+    init(id: String, cli: CLIKind, kind: SessionKind, pid: Int32?, sessionId: String?,
+         name: String, cwd: String, busy: Bool, detail: String?, startedAt: Date,
+         tokens: Int?, fan: [FanItem], surfaceID: String?, activityAt: Date? = nil) {
+        self.id = id; self.cli = cli; self.kind = kind; self.pid = pid; self.sessionId = sessionId
+        self.name = name; self.cwd = cwd; self.busy = busy; self.detail = detail
+        self.startedAt = startedAt; self.tokens = tokens; self.fan = fan; self.surfaceID = surfaceID
+        self.activityAt = activityAt
+    }
 }
 
 /// Single source of truth. Watchers push raw snapshots in; this merges them, derives the
@@ -75,6 +86,8 @@ final class SessionStore {
 
     /// Latest snapshots per CLI, kept so one watcher's update doesn't erase the other's.
     private var snapshots: [CLIKind: [SessionSnapshot]] = [:]
+    /// Codex completion watermarks prevent the next stale process scan from reopening work.
+    private var codexCompletionAt: [String: Date] = [:]
 
     private var pendingTimers: [String: ScheduledAction] = [:]
     private var soundDebounce: ScheduledAction?
@@ -190,6 +203,11 @@ final class SessionStore {
             if state != .working { s.fan = [] }
             next.append(s)
 
+            if snap.cli == .codex, let activity = snap.activityAt,
+               let watermark = codexCompletionAt[snap.id], activity > watermark {
+                codexCompletionAt.removeValue(forKey: snap.id)
+            }
+
             if state == .doneUnacked, prior?.state != .doneUnacked {
                 scheduleAutoAck(snap.id)
             }
@@ -226,6 +244,14 @@ final class SessionStore {
     }
 
     private func derive(_ snap: SessionSnapshot, prior: AgentSession?) -> SessionState {
+        if snap.cli == .codex, let prior, prior.state == .doneUnacked || prior.state == .idle,
+           codexCompletionAt[snap.id] != nil {
+            if let activity = snap.activityAt, let completion = codexCompletionAt[snap.id], activity > completion {
+                codexCompletionAt.removeValue(forKey: snap.id)
+            } else {
+                return prior.state
+            }
+        }
         if let sid = snap.sessionId, let mark = blocked[sid] {
             if isUnblocked(snap, mark) {
                 blocked.removeValue(forKey: sid)
@@ -256,14 +282,26 @@ final class SessionStore {
             let session = sessions[index]
             return session.cli == .codex && (cwd == nil || session.cwd == cwd)
         }
-        let i = sessionId.flatMap { id in
-            candidates.first { sessions[$0].sessionId == id }
-        } ?? candidates.first { sessions[$0].state == .working }
-            ?? candidates.first
+        let i: Int?
+        if let sessionId {
+            i = candidates.first { sessions[$0].sessionId == sessionId }
+            guard i != nil else {
+                Diagnostics.logger.error("Ignored Codex completion with unknown session id")
+                return
+            }
+        } else {
+            let working = candidates.filter { sessions[$0].state == .working }
+            guard working.count == 1 else {
+                Diagnostics.logger.error("Ignored Codex completion without an unambiguous session")
+                return
+            }
+            i = working[0]
+        }
         guard let i else { return }
         guard sessions[i].state != .doneUnacked else { return }
         sessions[i].state = .doneUnacked
         sessions[i].doneAt = now()
+        codexCompletionAt[sessions[i].id] = now()
         scheduleAutoAck(sessions[i].id)
         queueSound(.finished)
         sort()

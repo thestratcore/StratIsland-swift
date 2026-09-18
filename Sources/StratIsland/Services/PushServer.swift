@@ -26,6 +26,7 @@ final class PushServer {
 
     private var fd: Int32 = -1
     private var source: DispatchSourceRead?
+    private var clients: [Int32: (source: DispatchSourceRead, data: Data)] = [:]
     private let handler: (PushEvent) -> Void
 
     init(handler: @escaping (PushEvent) -> Void) {
@@ -71,21 +72,48 @@ final class PushServer {
 
     func stop() {
         source?.cancel(); source = nil
+        for client in Array(clients.keys) { closeClient(client) }
         if fd >= 0 { close(fd); fd = -1 }
         unlink(Self.socketPath)
     }
 
     private func accept() {
         let client = Darwin.accept(fd, nil, nil)
-        guard client >= 0 else { return }
-        defer { close(client) }
+        guard client >= 0, clients.count < 16 else { if client >= 0 { close(client) }; return }
+        _ = fcntl(client, F_SETFL, O_NONBLOCK)
+        let readSource = DispatchSource.makeReadSource(fileDescriptor: client, queue: .main)
+        clients[client] = (readSource, Data())
+        readSource.setEventHandler { [weak self] in self?.readClient(client) }
+        readSource.setCancelHandler { close(client) }
+        readSource.resume()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self, self.clients[client] != nil else { return }
+            self.closeClient(client)
+        }
+    }
 
-        var buf = [UInt8](repeating: 0, count: 8192)
-        let n = read(client, &buf, buf.count)
-        guard n > 0 else { return }
-        let data = Data(buf[0..<n])
+    private func readClient(_ client: Int32) {
+        guard var entry = clients[client] else { return }
+        var buf = [UInt8](repeating: 0, count: 2048)
+        while true {
+            let n = read(client, &buf, buf.count)
+            if n > 0 {
+                entry.data.append(contentsOf: buf[0..<n])
+                guard entry.data.count <= 8192 else { closeClient(client); return }
+                while let newline = entry.data.firstIndex(of: 10) {
+                    let line = entry.data.prefix(upTo: newline)
+                    entry.data.removeSubrange(...newline)
+                    handleLine(line)
+                }
+            } else if n == 0 { closeClient(client); return }
+            else if errno == EAGAIN || errno == EWOULDBLOCK { break }
+            else { closeClient(client); return }
+        }
+        clients[client] = (entry.source, entry.data)
+    }
 
-        for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
+    private func handleLine(_ line: Data.SubSequence) {
+        for line in String(decoding: line, as: UTF8.self).split(separator: "\n") {
             guard let d = line.data(using: .utf8),
                   let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
                   let cli = (obj["cli"] as? String).flatMap(CLIKind.init(rawValue:)),
@@ -108,6 +136,11 @@ final class PushServer {
             )
             handler(event)
         }
+    }
+
+    private func closeClient(_ client: Int32) {
+        guard let entry = clients.removeValue(forKey: client) else { return }
+        entry.source.cancel()
     }
 
 }

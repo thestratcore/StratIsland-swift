@@ -74,34 +74,59 @@ else
 fi
 
 # 3. Codex: the single notify program
-NOTIFY_LINE='notify = ["python3", "~/.local/bin/stratisland-notify.py"]'
+NOTIFY_LINE="notify = [\"python3\", \"$SCRIPT\"]"
 if [ -f "$CODEX_CONFIG" ]; then
-  EXISTING="$(grep -n '^[[:space:]]*notify[[:space:]]*=' "$CODEX_CONFIG" || true)"
-  if [ -z "$EXISTING" ]; then
-    cp "$CODEX_CONFIG" "$CODEX_CONFIG.bak-$STAMP"
-    printf '%s\n' "$NOTIFY_LINE" >> "$CODEX_CONFIG"
-    echo "added notify to $CODEX_CONFIG (backed up)"
-  elif printf '%s' "$EXISTING" | grep -q "stratisland-notify.py"; then
-    echo "notify already points at stratisland-notify.py"
-  elif [ "$FORCE" = "1" ]; then
-    cp "$CODEX_CONFIG" "$CODEX_CONFIG.bak-$STAMP"
-    python3 - "$CODEX_CONFIG" "$NOTIFY_LINE" <<'PY'
-import re, sys
-
-path, line = sys.argv[1], sys.argv[2]
-with open(path) as fh:
-    text = fh.read()
-text = re.sub(r'(?m)^[ \t]*notify[ \t]*=.*$', line, text, count=1)
-with open(path, 'w') as fh:
-    fh.write(text)
+  cp "$CODEX_CONFIG" "$CODEX_CONFIG.bak-$STAMP"
+  if ! python3 - "$CODEX_CONFIG" "$SCRIPT" "$FORCE" <<'PY'
+import json, os, re, sys, tempfile, tomllib
+path, script, force = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
+with open(path, "rb") as fh:
+    raw = fh.read()
+try:
+    parsed = tomllib.loads(raw.decode())
+except Exception as exc:
+    print(f"ERROR: invalid TOML; refusing to edit: {exc}")
+    raise SystemExit(1)
+text = raw.decode()
+lines = text.splitlines(keepends=True)
+root_end = next((i for i, line in enumerate(lines) if re.match(r"^\s*\[", line)), len(lines))
+root = "".join(lines[:root_end])
+matches = list(re.finditer(r"(?m)^[ \t]*notify[ \t]*=.*(?:\n|$)", root))
+line = f'notify = ["python3", {json.dumps(script)}]\n'
+if matches:
+    existing = matches[0].group(0)
+    if "stratisland-notify.py" in existing:
+        print("notify already points at stratisland-notify.py")
+        raise SystemExit(0)
+    if not force:
+        print("WARNING: root notify already exists; use --force to replace it")
+        raise SystemExit(1)
+    root = root[:matches[0].start()] + line + root[matches[0].end():]
+else:
+    root = line + root
+candidate = root + "".join(lines[root_end:])
+try:
+    validated = tomllib.loads(candidate)
+except Exception as exc:
+    print(f"ERROR: generated TOML is invalid: {exc}")
+    raise SystemExit(1)
+if validated.get("notify") != ["python3", script]:
+    print("ERROR: notify was not written at the TOML root")
+    raise SystemExit(1)
+mode = os.stat(path).st_mode & 0o777
+fd, tmp = tempfile.mkstemp(prefix=".stratisland-", dir=os.path.dirname(path) or ".")
+try:
+    os.fchmod(fd, mode)
+    with os.fdopen(fd, "w") as fh: fh.write(candidate)
+    os.replace(tmp, path)
+finally:
+    if os.path.exists(tmp): os.unlink(tmp)
+print("updated root notify (backed up by caller)")
 PY
-    echo "replaced notify in $CODEX_CONFIG (backed up)"
-  else
-    echo "WARNING: $CODEX_CONFIG already sets notify:"
-    printf '  %s\n' "$EXISTING"
-    echo "  Codex allows only one notify program. Re-run with --force to replace it,"
-    echo "  or call stratisland-notify.py from your own program. Codex completion will"
-    echo "  not reach StratIsland until one of those is done."
+  then
+    cp "$CODEX_CONFIG.bak-$STAMP" "$CODEX_CONFIG"
+    if [ "$FORCE" = "1" ]; then exit 1; fi
+    echo "Codex notify was not changed."
   fi
 else
   echo "WARNING: $CODEX_CONFIG not found; skipped the Codex notify program"

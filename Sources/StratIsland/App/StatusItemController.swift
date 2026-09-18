@@ -17,10 +17,32 @@ final class StatusItemController: NSObject {
 
     func start() {
         let i = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        i.button?.title = "◉"
-        i.button?.font = NSFont(name: FontRegistry.ocrFamily ?? "Menlo", size: 12)
+        if let icon = Self.menuBarImage() {
+            i.button?.image = icon
+            i.button?.title = ""
+        } else {
+            i.button?.title = "◉"
+            i.button?.font = NSFont(name: FontRegistry.ocrFamily ?? "Menlo", size: 12)
+        }
         i.menu = buildMenu()
         item = i
+    }
+
+    /// The custom menu bar icon, when one was bundled. Drawn as a *template*: macOS
+    /// recolours it for the current appearance and dims it while the menu is open, which is
+    /// why only the alpha channel matters and any colour in the file is discarded.
+    /// Absent, the app falls back to the OCR A glyph rather than shipping a blank button.
+    private static func menuBarImage() -> NSImage? {
+        for ext in ["pdf", "png"] {
+            guard let url = Bundle.main.url(forResource: "MenuBarIcon", withExtension: ext),
+                  let image = NSImage(contentsOf: url) else { continue }
+            // 18 pt inside a 22 pt menu bar is roughly what Apple's own items leave. A PDF
+            // scales; a bitmap is point-sized here, so a 36 px asset stays crisp on Retina.
+            image.size = NSSize(width: 18, height: 18)
+            image.isTemplate = true
+            return image
+        }
+        return nil
     }
 
     private func buildMenu() -> NSMenu {
