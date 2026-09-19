@@ -1,5 +1,6 @@
 .build/
 build/
 .DS_Store
-# OCR A Extended is copied from /Library/Fonts at package time, never committed.
+# OCR A Extended (uncertain redistribution license) was never committed. Kode Mono
+# replaced it and IS committed under Fonts/ — it is SIL OFL.
 *.TTF

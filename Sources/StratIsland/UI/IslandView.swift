@@ -73,7 +73,7 @@ struct IslandView: View {
                     }
                 } else {
                     Text("\u{2014}")
-                        .font(Theme.ocr(8))
+                        .font(Theme.mono(8))
                         .foregroundStyle(Theme.textTertiary)
                 }
             }
@@ -83,7 +83,7 @@ struct IslandView: View {
 
     private func tally(_ counts: [StateCount], _ style: SummaryStyle) -> some View {
         Text(flankSummary(counts, style: style))
-            .font(Theme.ocr(8))
+            .font(Theme.mono(8))
             .foregroundStyle(Theme.textPrimary)
             .lineLimit(1)
             .fixedSize()
@@ -102,18 +102,18 @@ struct IslandView: View {
                 }
                 if rest.count > 4 {
                     Text("+\(rest.count - 4)")
-                        .font(Theme.ocr(7))
+                        .font(Theme.mono(7))
                         .foregroundStyle(Theme.textSecondary)
                 }
                 if rest.isEmpty, let s = store.primary {
                     Text(s.state == .working ? formatElapsed(s.elapsed) : s.state.label)
-                        .font(Theme.ocr(7))
+                        .font(Theme.mono(7))
                         .foregroundStyle(Theme.textSecondary)
                         .lineLimit(1)
                 }
                 if store.muted {
                     Text("M")
-                        .font(Theme.ocr(6))
+                        .font(Theme.mono(6))
                         .foregroundStyle(Theme.textTertiary)
                 }
             }

@@ -41,7 +41,7 @@ enum SessionState: String, Codable, CaseIterable {
     }
 
     /// Flank form. `label` is what the expanded panel says; this is what fits beside the
-    /// cutout, where 144 pt of OCR A is roughly twelve characters.
+    /// cutout, where 144 pt of Kode Mono is roughly a dozen characters.
     var shortLabel: String {
         switch self {
         case .needsInput:  return "NEEDS"

@@ -14,7 +14,7 @@ struct ExpandedPanelView: View {
         VStack(alignment: .leading, spacing: 0) {
             if store.sessions.isEmpty {
                 Text("NO ACTIVE SESSIONS")
-                    .font(Theme.ocr(10))
+                    .font(Theme.mono(10))
                     .foregroundStyle(Theme.textTertiary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 18)
@@ -35,7 +35,7 @@ struct ExpandedPanelView: View {
             if !store.recent.isEmpty {
                 Divider().overlay(Theme.hairline)
                 Text("RECENT")
-                    .font(Theme.ocr(8))
+                    .font(Theme.mono(8))
                     .foregroundStyle(Theme.textTertiary)
                     .padding(.horizontal, 14)
                     .padding(.top, 8)
@@ -44,11 +44,11 @@ struct ExpandedPanelView: View {
                     HStack(spacing: 7) {
                         StateDot(state: .exited, size: 5)
                         Text(s.shortName(max: 36))
-                            .font(Theme.ocr(9))
+                            .font(Theme.mono(9))
                             .foregroundStyle(Theme.textTertiary)
                         Spacer()
                         Text(s.project.uppercased())
-                            .font(Theme.ocr(9))
+                            .font(Theme.mono(9))
                             .foregroundStyle(Theme.textTertiary)
                     }
                     .padding(.horizontal, 14)
@@ -82,15 +82,15 @@ private struct SessionRow: View {
             HStack(spacing: 7) {
                 StateDot(state: session.state)
                 Text(session.cli.glyph)
-                    .font(Theme.ocr(10))
+                    .font(Theme.mono(10))
                     .foregroundStyle(Theme.textTertiary)
                 Text(session.shortName(max: 44))
-                    .font(Theme.ocr(11))
+                    .font(Theme.mono(11))
                     .foregroundStyle(Theme.textPrimary)
                     .lineLimit(1)
                 if let badge = session.kind.badge {
                     Text(badge)
-                        .font(Theme.ocr(8))
+                        .font(Theme.mono(8))
                         .foregroundStyle(Theme.textTertiary)
                         .padding(.horizontal, 3)
                         .padding(.vertical, 1)
@@ -98,18 +98,18 @@ private struct SessionRow: View {
                 }
                 Spacer(minLength: 8)
                 Text(session.state.label)
-                    .font(Theme.ocr(9))
+                    .font(Theme.mono(9))
                     .foregroundStyle(session.state.color)
                     .lineLimit(1)
                 Text(formatElapsed(now.timeIntervalSince(session.startedAt)))
-                    .font(Theme.ocr(10))
+                    .font(Theme.mono(10))
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(1)
             }
 
             HStack(spacing: 6) {
                 Text(session.project.uppercased())
-                    .font(Theme.ocr(9))
+                    .font(Theme.mono(9))
                     .foregroundStyle(Theme.textTertiary)
                     .lineLimit(1)
                     .layoutPriority(1)
@@ -117,7 +117,7 @@ private struct SessionRow: View {
                     // Subagents are a count here, not a list: they churn far too fast to
                     // read individually, and each one used to add a line.
                     Text("└\(session.fan.count)")
-                        .font(Theme.ocr(9))
+                        .font(Theme.mono(9))
                         .foregroundStyle(Theme.textTertiary)
                         .layoutPriority(1)
                 }
@@ -131,7 +131,7 @@ private struct SessionRow: View {
                 Spacer(minLength: 6)
                 if let t = session.tokens {
                     Text(formatTokens(t))
-                        .font(Theme.ocr(9))
+                        .font(Theme.mono(9))
                         .foregroundStyle(Theme.textTertiary)
                         .layoutPriority(1)
                 }

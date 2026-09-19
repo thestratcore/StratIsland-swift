@@ -7,8 +7,8 @@ enum Theme {
     /// which meant the window's origin.x moved left by 21 pt while the SwiftUI content
     /// re-laid out on a different curve than the window's frame animation: the pill visibly
     /// slid left as it opened. Hover now changes height only.
-    /// OCR A is monospaced and wide — at
-    /// 124 pt useful titles still clipped around 10 characters. 144 pt fits ~12 characters
+    /// The flank font is monospaced — at
+    /// 124 pt useful titles still clipped around 10 characters. 144 pt fits a dozen or so
     /// and still leaves ~650 pt of menu bar free on each side: menus grow
     /// rightward from the left edge and status items grow leftward from the right edge, so
     /// the strip beside the notch is the last real estate either one claims.
@@ -29,15 +29,17 @@ enum Theme {
     /// read at a glance from a normal sitting distance rather than studied.
     static let fontBump: CGFloat = 2
 
-    /// OCR A carries the machine-readout character: names, states, counts, timings.
+    /// Kode Mono carries the machine-readout character: names, states, counts, timings.
+    /// It replaced OCR A Extended, which has no Czech diacritics — session titles are
+    /// often Czech, and the missing glyphs fell back to another face mid-word.
     @MainActor
-    static func ocr(_ size: CGFloat) -> Font {
-        FontRegistry.ocrFamily.map { Font.custom($0, fixedSize: size + fontBump) }
+    static func mono(_ size: CGFloat) -> Font {
+        FontRegistry.monoFamily.map { Font.custom($0, fixedSize: size + fontBump) }
             ?? .system(size: size + fontBump, weight: .medium, design: .monospaced)
     }
 
-    /// The `detail` line is prose written for a human. OCR A at 11 pt makes it unreadable,
-    /// so structure and content deliberately use different faces.
+    /// The `detail` line is prose written for a human. A display mono at 11 pt makes it
+    /// unreadable, so structure and content deliberately use different faces.
     static func prose(_ size: CGFloat) -> Font {
         .system(size: size + fontBump, design: .monospaced)
     }
@@ -45,22 +47,22 @@ enum Theme {
 
 @MainActor
 enum FontRegistry {
-    private(set) static var ocrFamily: String?
+    private(set) static var monoFamily: String?
 
     /// Prefer the copy bundled in the app so appearance can't change if the system font
     /// is moved or removed; fall back to a system-installed copy, then to nothing.
     static func register() {
-        if let url = Bundle.main.url(forResource: "OCRAEXT", withExtension: "TTF") {
+        if let url = Bundle.main.url(forResource: "KodeMono-Variable", withExtension: "ttf") {
             var error: Unmanaged<CFError>?
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error)
         }
-        for candidate in ["OCR A Extended", "OCRAExtended"] {
+        for candidate in ["Kode Mono", "KodeMono"] {
             if NSFont(name: candidate, size: 12) != nil {
-                ocrFamily = candidate
+                monoFamily = candidate
                 return
             }
         }
-        ocrFamily = nil
+        monoFamily = nil
     }
 }
 

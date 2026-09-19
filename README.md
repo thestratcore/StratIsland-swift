@@ -110,7 +110,7 @@ python3 ~/.local/bin/stratisland-notify.py --self-test
 
 - **Nothing is drawn inside the cutout.** It is a physical hole with no pixels. The island
   is two flanks in the menu bar plus a panel that drops below.
-- **144 pt flanks, in both states.** OCR A is monospaced and wide; at 124 pt useful session
+- **144 pt flanks, in both states.** The flank font is monospaced; at 124 pt useful session
   titles still clipped around 10 characters. 144 pt fits ~12 characters and still leaves
   ~650 pt of menu bar free on each side — and menus grow from the left edge while status
   items grow from the right, so the strip beside the notch is the last real estate either
@@ -160,8 +160,11 @@ python3 ~/.local/bin/stratisland-notify.py --self-test
   the menu bar auto-hides or is revealed, and space-change notifications arrive before the
   window list reflects the new space.
 
-- **OCR A for structure, SF Mono for prose.** Names, states, counts and timings are OCR A.
-  The `detail` line is a sentence written for a human and is unreadable in OCR A at 10 pt.
+- **Kode Mono for structure, SF Mono for prose.** Names, states, counts and timings are
+  Kode Mono (SIL OFL, bundled in `Fonts/`). It replaced OCR A Extended, which has no Czech
+  diacritics — Czech session titles lost `ě č ř ů ň ť ď` to a fallback face mid-word.
+  The `detail` line is a sentence written for a human and is unreadable in a display mono
+  at 10 pt.
 - **The pulse runs on CoreAnimation, not SwiftUI.** A `repeatForever` SwiftUI animation
   cost ~6% CPU continuously whenever a session was working. A `CABasicAnimation` on the
   layer runs on the render server: idle cost is now 0.0–0.5%.

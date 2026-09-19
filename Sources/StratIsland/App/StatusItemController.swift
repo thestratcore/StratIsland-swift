@@ -22,7 +22,7 @@ final class StatusItemController: NSObject {
             i.button?.title = ""
         } else {
             i.button?.title = "◉"
-            i.button?.font = NSFont(name: FontRegistry.ocrFamily ?? "Menlo", size: 12)
+            i.button?.font = NSFont(name: FontRegistry.monoFamily ?? "Menlo", size: 12)
         }
         i.menu = buildMenu()
         item = i
@@ -31,7 +31,7 @@ final class StatusItemController: NSObject {
     /// The custom menu bar icon, when one was bundled. Drawn as a *template*: macOS
     /// recolours it for the current appearance and dims it while the menu is open, which is
     /// why only the alpha channel matters and any colour in the file is discarded.
-    /// Absent, the app falls back to the OCR A glyph rather than shipping a blank button.
+    /// Absent, the app falls back to a text glyph rather than shipping a blank button.
     private static func menuBarImage() -> NSImage? {
         for ext in ["pdf", "png"] {
             guard let url = Bundle.main.url(forResource: "MenuBarIcon", withExtension: ext),

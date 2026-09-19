@@ -15,20 +15,21 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/StratIsland"
 
-# OCR A Extended is copied from the system at package time rather than committed, so a
-# font of uncertain redistribution license never enters the repo. The app falls back to a
+# Kode Mono is committed to the repo under Fonts/ — unlike the OCR A Extended it replaced,
+# it is SIL OFL licensed, so redistribution is explicit. The app falls back to a
 # system-installed copy, then to Menlo, if it is absent.
-if [ -f /Library/Fonts/OCRAEXT.TTF ]; then
-  cp /Library/Fonts/OCRAEXT.TTF "$APP/Contents/Resources/OCRAEXT.TTF"
-  echo "    bundled OCR A Extended"
+if [ -f Fonts/KodeMono-Variable.ttf ]; then
+  cp Fonts/KodeMono-Variable.ttf "$APP/Contents/Resources/KodeMono-Variable.ttf"
+  cp Fonts/KodeMono-OFL.txt "$APP/Contents/Resources/KodeMono-OFL.txt"
+  echo "    bundled Kode Mono"
 else
-  echo "    WARNING: /Library/Fonts/OCRAEXT.TTF not found — falling back to Menlo"
+  echo "    WARNING: Fonts/KodeMono-Variable.ttf not found — falling back to Menlo"
 fi
 
 # The menu bar icon is bundled verbatim. It is a *template* asset: monochrome with a real
 # alpha channel, because macOS recolours it for the current appearance and throws the colour
 # away. Generated from the Stratcore mark's alpha at 36 px so 18 pt stays crisp on Retina.
-# Without it the status item falls back to the OCR A glyph.
+# Without it the status item falls back to a text glyph.
 if [ -f MenuBarIcon.png ]; then
   cp MenuBarIcon.png "$APP/Contents/Resources/MenuBarIcon.png"
   echo "    bundled MenuBarIcon.png"
