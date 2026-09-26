@@ -5,6 +5,10 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 APP="build/StratIsland.app"
+# Version comes from the release tag when there is one (scripts/release.sh passes it);
+# the build number is the commit count, so it only ever goes up.
+VERSION="${VERSION:-1.0}"
+BUILD="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
 BIN="$(swift build -c release --show-bin-path)/StratIsland"
 
 echo "==> building"
@@ -65,8 +69,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleExecutable</key><string>StratIsland</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>__VERSION__</string>
+    <key>CFBundleVersion</key><string>__BUILD__</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
     <key>NSAppleEventsUsageDescription</key>
@@ -75,7 +79,27 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-echo "==> signing (ad-hoc)"
-codesign --force --deep --sign - "$APP"
+sed -i '' -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" "$APP/Contents/Info.plist"
+
+# A Developer ID signature is stable across rebuilds, so the Automation grant for Terminal
+# survives them; an ad-hoc one changes every build. Set SIGN_IDENTITY to pick a specific
+# identity, or SIGN_IDENTITY=- to force ad-hoc. Without a Developer ID in the keychain
+# (anyone building from source) this falls back to ad-hoc, which is fine for local use.
+if [ -z "${SIGN_IDENTITY:-}" ]; then
+  SIGN_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+    | sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)"
+  SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+fi
+
+if [ "$SIGN_IDENTITY" = "-" ]; then
+  echo "==> signing (ad-hoc)"
+  codesign --force --sign - "$APP"
+else
+  # Hardened runtime and a secure timestamp are both required for notarization.
+  echo "==> signing as $SIGN_IDENTITY"
+  codesign --force --options runtime --timestamp \
+    --entitlements StratIsland.entitlements --sign "$SIGN_IDENTITY" "$APP"
+fi
+codesign --verify --strict "$APP"
 
 echo "==> done: $APP"

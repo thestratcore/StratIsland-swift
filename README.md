@@ -53,6 +53,11 @@ Runtime failures are also written through unified logging under subsystem
 
 ## Install
 
+Signed and notarized builds are attached to
+[GitHub Releases](https://github.com/thestratcore/StratIsland-swift/releases): unzip, move
+`StratIsland.app` to `/Applications`, then run the hook and LaunchAgent scripts below from a
+clone. To build from source instead:
+
 ```sh
 ./package.sh                     # builds build/StratIsland.app
 ./scripts/install-hooks.sh       # wires both CLIs into the app (backs up what it touches)
@@ -217,3 +222,17 @@ buffer (getting the argv skip wrong yields an empty environment, which reads exa
 "this session isn't in cmux"), and — when the suite is run from a cmux pane — the resolver
 is asked to find the test binary's own surface by walking up the parent chain, which is the
 same shape as a background Claude job under its daemon.
+
+## Releasing
+
+`package.sh` signs with the first `Developer ID Application` identity in the keychain and
+falls back to ad-hoc without one (`SIGN_IDENTITY` overrides either). The Developer ID build
+runs under the hardened runtime, which needs `StratIsland.entitlements` for Apple Events.
+
+```sh
+./scripts/release.sh 1.1   # build, sign, notarize, staple → build/StratIsland-1.1.zip
+gh release create v1.1 build/StratIsland-1.1.zip --title v1.1 --generate-notes
+```
+
+Notarization needs a one-time credential profile:
+`xcrun notarytool store-credentials stratisland --apple-id <id> --team-id 78KDVL5883`.
