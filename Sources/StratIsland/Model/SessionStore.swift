@@ -203,11 +203,6 @@ final class SessionStore {
             if state != .working { s.fan = [] }
             next.append(s)
 
-            if snap.cli == .codex, let activity = snap.activityAt,
-               let watermark = codexCompletionAt[snap.id], activity > watermark {
-                codexCompletionAt.removeValue(forKey: snap.id)
-            }
-
             if state == .doneUnacked, prior?.state != .doneUnacked {
                 scheduleAutoAck(snap.id)
             }
@@ -244,6 +239,9 @@ final class SessionStore {
     }
 
     private func derive(_ snap: SessionSnapshot, prior: AgentSession?) -> SessionState {
+        // This is the only place codexCompletionAt is cleared. It runs once per snapshot per
+        // rebuild(), before anything else can observe the watermark, so state can never
+        // reach .working while it is still set — there is no second place left to clear it.
         if snap.cli == .codex, let prior, prior.state == .doneUnacked || prior.state == .idle,
            codexCompletionAt[snap.id] != nil {
             if let activity = snap.activityAt, let completion = codexCompletionAt[snap.id], activity > completion {

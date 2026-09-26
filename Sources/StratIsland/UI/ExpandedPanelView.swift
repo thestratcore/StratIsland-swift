@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 /// Read-only detail, plus click-to-focus. Deliberately no interrupt/kill controls: this

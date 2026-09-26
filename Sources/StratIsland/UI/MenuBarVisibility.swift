@@ -149,6 +149,7 @@ final class MenuBarVisibility {
                 let atTop = NSEvent.mouseLocation.y >= screen.frame.maxY - 4
                 if atTop, self.menuBarHidden {
                     self.menuBarHidden = false
+                    self.removeMouseMonitor()
                     self.onChange()
                 } else if !atTop, !self.menuBarHidden, self.detectMenuBarHidden() {
                     self.menuBarHidden = true
