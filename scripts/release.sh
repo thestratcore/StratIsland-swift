@@ -73,9 +73,11 @@ spctl -a -t open --context context:primary-signature -v "$DMG_VERSIONED"
 if [ -n "${TAP_DIR:-}" ] && [ -f "$TAP_DIR/Casks/stratisland.rb" ]; then
   echo "==> bumping the Homebrew cask in $TAP_DIR"
   SHA256="$(shasum -a 256 "$DMG_VERSIONED" | awk '{print $1}')"
+  # The unquoted form (sha256 :no_check) is what the cask starts with as a placeholder
+  # before any DMG exists to hash; match both that and a previously-set quoted hash.
   sed -i '' \
     -e "s/version \".*\"/version \"$VERSION\"/" \
-    -e "s/sha256 \".*\"/sha256 \"$SHA256\"/" \
+    -e "s/sha256 .*/sha256 \"$SHA256\"/" \
     "$TAP_DIR/Casks/stratisland.rb"
   echo "    updated version=$VERSION sha256=$SHA256"
   echo "    review and push: (cd \"$TAP_DIR\" && git commit -am 'stratisland $VERSION' && git push)"
