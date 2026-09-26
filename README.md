@@ -7,9 +7,22 @@ Built for one question: which of my agents is working, which is finished, and wh
 blocked waiting on me — without cycling through panes. Local-only; it makes no network
 calls and writes no history to disk.
 
+**[Download for macOS](https://github.com/thestratcore/StratIsland-swift/releases/latest/download/StratIsland.dmg)**
+· or `brew install --cask thestratcore/tap/stratisland`
+
 ![collapsed: one session on the left flank](docs/island-collapsed.jpg)
 
 ![expanded: the panel drops below the cutout](docs/island-expanded.jpg)
+
+## Quick start
+
+1. Open the DMG and drag **StratIsland** into Applications, then launch it (or install it
+   with the brew command above).
+2. Click its menu bar icon → **Install hooks…** to wire in Claude Code and Codex.
+3. Click its menu bar icon → **Start at login**, if you want it running every time.
+
+Both of those are self-contained — nothing here needs a clone unless you're building from
+source.
 
 ## What it shows
 
@@ -54,22 +67,28 @@ Runtime failures are also written through unified logging under subsystem
 ## Install
 
 Signed and notarized builds are attached to
-[GitHub Releases](https://github.com/thestratcore/StratIsland-swift/releases): unzip, move
-`StratIsland.app` to `/Applications`, then run the hook and LaunchAgent scripts below from a
-clone. To build from source instead:
+[GitHub Releases](https://github.com/thestratcore/StratIsland-swift/releases) as a DMG and
+a zip; see **Quick start** above. Both installers in the menu bar item run scripts that are
+bundled inside the app itself:
+
+- **Install hooks…** installs `stratisland-notify.py` to `~/.local/bin`, adds `Stop` and
+  `Notification` hooks to `~/.claude/settings.json`, sets `notify` in
+  `~/.codex/config.toml`, and then checks the socket end to end and tells you what arrived.
+  It backs up every file it touches. Codex allows exactly one `notify` program, so an entry
+  you already have is reported rather than overwritten — the alert offers to replace it.
+- **Start at login** registers the app with `SMAppService`, matching whatever app bundle is
+  currently running — `/Applications` if you installed via the DMG or Homebrew.
+
+### Build from source
 
 ```sh
-./package.sh                     # builds build/StratIsland.app
-./scripts/install-hooks.sh       # wires both CLIs into the app (backs up what it touches)
-./scripts/install-launchagent.sh # optional: start at login
+./package.sh          # builds build/StratIsland.app (ad-hoc signed without a Developer ID)
 open build/StratIsland.app
 ```
 
-`install-hooks.sh` installs `stratisland-notify.py` to `~/.local/bin`, adds `Stop` and
-`Notification` hooks to `~/.claude/settings.json`, sets `notify` in `~/.codex/config.toml`,
-and then checks the socket end to end and tells you what arrived. It backs up every file it
-touches. Codex allows exactly one `notify` program, so an entry you already have is
-reported rather than overwritten — pass `--force` to replace it.
+Then use the same **Install hooks…** / **Start at login** menu items. The two scripts
+behind them, `scripts/install-hooks.sh` and `scripts/install-launchagent.sh`, still work
+stand-alone if you'd rather run them by hand or from a LaunchAgent instead of a login item.
 
 ## How it gets its data
 
