@@ -2,6 +2,7 @@
 
 A Dynamic Island for the Mac notch, showing the live state of Claude Code and Codex CLI
 sessions. Hover to expand, click a session to jump to the pane that owns it.
+An optional mouse jiggler generates small pointer movements from the menu bar menu.
 
 Built for one question: which of my agents is working, which is finished, and which is
 blocked waiting on me — without cycling through panes. Local-only; it makes no network
@@ -90,6 +91,15 @@ Movement is skipped if input occurred in the last 10 seconds, a mouse button is 
 or the pointer is within the top 80 points of a display. The jiggler turns off at
 launch, on sleep/display sleep, and when the user session becomes inactive. It does
 not automatically restart after waking. No settings or movement history are saved.
+
+To test a source build, quit the running copy, run `./package.sh`, then
+`open build/StratIsland.app`. Enable the toggle, place the pointer near the screen's
+center, and leave input untouched for at least 30 seconds. Check the menu item to
+confirm it is enabled. If permission is revoked, the service stops and the menu
+shows **Mouse jiggler — permission required**. Enable access and toggle it again.
+
+Source builds include this feature; previously published downloads are unchanged
+until a new release is published.
 
 This generates mouse movement; it does not guarantee another application's presence
 status or prevent every form of sleep or screen locking.
@@ -247,7 +257,12 @@ swift build -Xswiftc -warnings-as-errors
 swift test -Xswiftc -warnings-as-errors
 ```
 
-The tests use injected time, scheduling, and sound boundaries, so they cover completion and
+Mouse-jiggler geometry tests cover alternating movement, recent activity, held
+buttons, the top exclusion strip, display edges, and secondary-display coordinates.
+Actual event delivery, permission prompts, and sleep/session transitions require
+interactive validation on macOS.
+
+The session tests use injected time, scheduling, and sound boundaries, so they cover completion and
 acknowledgement, blocked-state clearing and expiry, exited-session reaping, Codex completion
 routing, and injected-prompt filtering without wall-clock sleeps or audio side effects.
 
