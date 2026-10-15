@@ -9,6 +9,7 @@ nonisolated(unsafe) var instanceGuard: SingleInstanceGuard?
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = SessionStore()
     private let health = AppHealth()
+    private let mouseJiggler = MouseJiggler()
     private var claude: ClaudeWatcher?
     private var codex: CodexWatcher?
     private var push: PushServer?
@@ -25,7 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.start()
         self.window = window
 
-        let statusItem = StatusItemController(store: store, health: health)
+        let statusItem = StatusItemController(store: store, health: health, mouseJiggler: mouseJiggler)
         statusItem.start()
         self.statusItem = statusItem
 
@@ -65,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        mouseJiggler.shutdown()
         push?.stop()
         claude?.stop()
         codex?.stop()

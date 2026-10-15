@@ -79,6 +79,21 @@ bundled inside the app itself:
 - **Start at login** registers the app with `SMAppService`, matching whatever app bundle is
   currently running — `/Applications` if you installed via the DMG or Homebrew.
 
+### Mouse jiggler
+
+Enable **Mouse jiggler** from the menu bar menu. It requires permission in
+**System Settings → Privacy & Security → Accessibility**; after granting access,
+enable the toggle again.
+
+While enabled, the pointer moves one point every 30 seconds, alternating direction.
+Movement is skipped if input occurred in the last 10 seconds, a mouse button is held,
+or the pointer is within the top 80 points of a display. The jiggler turns off at
+launch, on sleep/display sleep, and when the user session becomes inactive. It does
+not automatically restart after waking. No settings or movement history are saved.
+
+This generates mouse movement; it does not guarantee another application's presence
+status or prevent every form of sleep or screen locking.
+
 ### Build from source
 
 ```sh

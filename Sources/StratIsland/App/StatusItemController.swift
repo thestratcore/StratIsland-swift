@@ -9,10 +9,12 @@ final class StatusItemController: NSObject {
     private var item: NSStatusItem?
     private let store: SessionStore
     private let health: AppHealth
+    private let mouseJiggler: MouseJiggler
 
-    init(store: SessionStore, health: AppHealth) {
+    init(store: SessionStore, health: AppHealth, mouseJiggler: MouseJiggler) {
         self.store = store
         self.health = health
+        self.mouseJiggler = mouseJiggler
         super.init()
     }
 
@@ -56,6 +58,11 @@ final class StatusItemController: NSObject {
         mute.identifier = NSUserInterfaceItemIdentifier("mute")
         menu.addItem(mute)
 
+        let jiggle = NSMenuItem(title: "Mouse jiggler", action: #selector(toggleMouseJiggler), keyEquivalent: "")
+        jiggle.target = self
+        jiggle.identifier = NSUserInterfaceItemIdentifier("jiggler")
+        menu.addItem(jiggle)
+
         let healthItem = NSMenuItem(title: "Health: OK", action: nil, keyEquivalent: "")
         healthItem.identifier = NSUserInterfaceItemIdentifier("health")
         healthItem.isEnabled = false
@@ -85,6 +92,20 @@ final class StatusItemController: NSObject {
         quit.target = self
         menu.addItem(quit)
         return menu
+    }
+
+    @objc private func toggleMouseJiggler() {
+        if mouseJiggler.enabled {
+            mouseJiggler.stop()
+        } else {
+            mouseJiggler.start()
+            if mouseJiggler.permissionDenied {
+                let alert = NSAlert()
+                alert.messageText = "Mouse jiggler needs Accessibility permission"
+                alert.informativeText = "Enable StratIsland in System Settings → Privacy & Security → Accessibility, then turn on Mouse jiggler again."
+                alert.runModal()
+            }
+        }
     }
 
     @objc private func toggleMute() { store.muted.toggle() }
@@ -180,6 +201,10 @@ extension StatusItemController: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         menu.items.first { $0.identifier?.rawValue == "mute" }?.state = store.muted ? .on : .off
         menu.items.first { $0.identifier?.rawValue == "login" }?.state = Self.loginItemEnabled ? .on : .off
+        let jiggle = menu.items.first { $0.identifier?.rawValue == "jiggler" }
+        jiggle?.state = mouseJiggler.enabled ? .on : .off
+        jiggle?.title = mouseJiggler.permissionDenied
+            ? "Mouse jiggler — permission required" : "Mouse jiggler"
         let lines = health.menuLines
         menu.items.first { $0.identifier?.rawValue == "health" }?.title = lines.isEmpty
             ? "Health: OK"
