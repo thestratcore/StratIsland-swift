@@ -17,3 +17,14 @@ Read `README.md` for repository-specific context.
 ## Vault usage
 
 Before editing vault notes or relying on them for requirements, read `/Users/admin/Documents/Obsidian-Stratcore/AGENTS.md`. Check each note's status and use current, project-specific sources. Follow the vault's canonical terminology and credential-file rules; keep credential contents out of this repository and project summaries.
+
+## Verify
+
+```sh
+swift build -Xswiftc -warnings-as-errors
+swift test -Xswiftc -warnings-as-errors
+```
+
+## Hard rules
+
+- Never commit signing or notarisation credentials (keychain profile `stratisland`).

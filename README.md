@@ -15,17 +15,18 @@ calls and writes no history to disk.
 
 ![expanded: the panel drops below the cutout](docs/island-expanded.jpg)
 
-## Quick start
+## Stack
 
-1. Open the DMG and drag **StratIsland** into Applications, then launch it (or install it
-   with the brew command above).
-2. Click its menu bar icon → **Install hooks…** to wire in Claude Code and Codex.
-3. Click its menu bar icon → **Start at login**, if you want it running every time.
+| Component | Technology | Pinned in |
+|---|---|---|
+| Platform | macOS (notched Macs), Swift 6 language mode, AppKit/SwiftUI | `Package.swift` (`swift-tools-version`, `platforms`) |
+| Dependencies | none (no Swift packages) | `Package.swift` |
+| Integrations | Claude Code and Codex CLI session state; cmux or Terminal.app for click-to-focus | README "How it gets its data" |
+| Packaging | `package.sh`, `scripts/release.sh` (Developer ID, notarised) | `StratIsland.entitlements` |
 
-Both of those are self-contained — nothing here needs a clone unless you're building from
-source.
+## Features
 
-## What it shows
+### What it shows
 
 Each Claude Code session — interactive **and** background jobs, as peers — and each Codex
 CLI session gets a pill. State is the only thing colour encodes; CLI identity is a glyph
@@ -47,75 +48,7 @@ The status menu reports `Health: OK` or names any watcher/socket component that 
 Runtime failures are also written through unified logging under subsystem
 `com.stratcore.stratisland`.
 
-## Requirements
-
-- A Mac with a notch (the geometry is derived from `NSScreen.auxiliaryTop*Area`; on a
-  machine without one the island simply never appears)
-- macOS 14+, Swift 6 language mode
-- **A terminal host: [cmux](https://cmux.com) or Terminal.app.** Both are supported, and
-  sessions in either are shown side by side — the state you see comes from the CLIs
-  themselves, not from the host, so nothing about the display depends on which one you use.
-  The difference is only in how a click finds its way back:
-
-  | | cmux | Terminal.app |
-  |---|---|---|
-  | Click-to-focus | `surface.focus` RPC, exact | AppleScript `tty of tab` match |
-  | Permission prompt | none | **Automation**, once |
-  | Background Claude jobs | focusable | not focusable — they own no tab |
-
-  If you use neither, everything except click-to-focus still works.
-
-## Install
-
-Signed and notarized builds are attached to
-[GitHub Releases](https://github.com/thestratcore/StratIsland-swift/releases) as a DMG and
-a zip; see **Quick start** above. Both installers in the menu bar item run scripts that are
-bundled inside the app itself:
-
-- **Install hooks…** installs `stratisland-notify.py` to `~/.local/bin`, adds `Stop` and
-  `Notification` hooks to `~/.claude/settings.json`, sets `notify` in
-  `~/.codex/config.toml`, and then checks the socket end to end and tells you what arrived.
-  It backs up every file it touches. Codex allows exactly one `notify` program, so an entry
-  you already have is reported rather than overwritten — the alert offers to replace it.
-- **Start at login** registers the app with `SMAppService`, matching whatever app bundle is
-  currently running — `/Applications` if you installed via the DMG or Homebrew.
-
-### Mouse jiggler
-
-Enable **Mouse jiggler** from the menu bar menu. It requires permission in
-**System Settings → Privacy & Security → Accessibility**; after granting access,
-enable the toggle again.
-
-While enabled, the pointer moves one point every 30 seconds, alternating direction.
-Movement is skipped if input occurred in the last 10 seconds, a mouse button is held,
-or the pointer is within the top 80 points of a display. The jiggler turns off at
-launch, on sleep/display sleep, and when the user session becomes inactive. It does
-not automatically restart after waking. No settings or movement history are saved.
-
-To test a source build, quit the running copy, run `./package.sh`, then
-`open build/StratIsland.app`. Enable the toggle, place the pointer near the screen's
-center, and leave input untouched for at least 30 seconds. Check the menu item to
-confirm it is enabled. If permission is revoked, the service stops and the menu
-shows **Mouse jiggler — permission required**. Enable access and toggle it again.
-
-Source builds include this feature; previously published downloads are unchanged
-until a new release is published.
-
-This generates mouse movement; it does not guarantee another application's presence
-status or prevent every form of sleep or screen locking.
-
-### Build from source
-
-```sh
-./package.sh          # builds build/StratIsland.app (ad-hoc signed without a Developer ID)
-open build/StratIsland.app
-```
-
-Then use the same **Install hooks…** / **Start at login** menu items. The two scripts
-behind them, `scripts/install-hooks.sh` and `scripts/install-launchagent.sh`, still work
-stand-alone if you'd rather run them by hand or from a LaunchAgent instead of a login item.
-
-## How it gets its data
+### How it gets its data
 
 **Claude Code** publishes a genuinely rich feed, and it is the primary source:
 
@@ -155,7 +88,7 @@ Check it any time with:
 python3 ~/.local/bin/stratisland-notify.py --self-test
 ```
 
-## Design notes
+### Design notes
 
 - **Nothing is drawn inside the cutout.** It is a physical hole with no pixels. The island
   is two flanks in the menu bar plus a panel that drops below.
@@ -222,7 +155,7 @@ python3 ~/.local/bin/stratisland-notify.py --self-test
 - **Built-in display only.** No synthetic notch on external monitors — a notch-shaped
   black blob on a screen with no notch reads as a bug, not a feature.
 
-### Debugging
+#### Debugging
 
     STRATISLAND_DEBUG_LOG=1 ./build/StratIsland.app/Contents/MacOS/StratIsland
 
@@ -232,7 +165,7 @@ to unified logging instead, since they matter in a normal run:
 
     log show --predicate 'subsystem == "com.stratcore.stratisland"' --last 30m --info
 
-## Known limits
+### Known limits
 
 - **Unverified:** whether Claude reports `busy` or `idle` while a permission prompt is on
   screen. `NEEDS YOU` is therefore cleared only on positive evidence that the session moved
@@ -250,7 +183,87 @@ to unified logging instead, since they matter in a normal run:
   format changes, the app degrades to working-directory and newest-activity matching and
   reports parsing failures through its health diagnostics.
 
-## Validation
+## Run and test
+
+### Quick start
+
+1. Open the DMG and drag **StratIsland** into Applications, then launch it (or install it
+   with the brew command above).
+2. Click its menu bar icon → **Install hooks…** to wire in Claude Code and Codex.
+3. Click its menu bar icon → **Start at login**, if you want it running every time.
+
+Both of those are self-contained — nothing here needs a clone unless you're building from
+source.
+
+### Requirements
+
+- A Mac with a notch (the geometry is derived from `NSScreen.auxiliaryTop*Area`; on a
+  machine without one the island simply never appears)
+- macOS 14+, Swift 6 language mode
+- **A terminal host: [cmux](https://cmux.com) or Terminal.app.** Both are supported, and
+  sessions in either are shown side by side — the state you see comes from the CLIs
+  themselves, not from the host, so nothing about the display depends on which one you use.
+  The difference is only in how a click finds its way back:
+
+  | | cmux | Terminal.app |
+  |---|---|---|
+  | Click-to-focus | `surface.focus` RPC, exact | AppleScript `tty of tab` match |
+  | Permission prompt | none | **Automation**, once |
+  | Background Claude jobs | focusable | not focusable — they own no tab |
+
+  If you use neither, everything except click-to-focus still works.
+
+### Install
+
+Signed and notarized builds are attached to
+[GitHub Releases](https://github.com/thestratcore/StratIsland-swift/releases) as a DMG and
+a zip; see **Quick start** above. Both installers in the menu bar item run scripts that are
+bundled inside the app itself:
+
+- **Install hooks…** installs `stratisland-notify.py` to `~/.local/bin`, adds `Stop` and
+  `Notification` hooks to `~/.claude/settings.json`, sets `notify` in
+  `~/.codex/config.toml`, and then checks the socket end to end and tells you what arrived.
+  It backs up every file it touches. Codex allows exactly one `notify` program, so an entry
+  you already have is reported rather than overwritten — the alert offers to replace it.
+- **Start at login** registers the app with `SMAppService`, matching whatever app bundle is
+  currently running — `/Applications` if you installed via the DMG or Homebrew.
+
+#### Mouse jiggler
+
+Enable **Mouse jiggler** from the menu bar menu. It requires permission in
+**System Settings → Privacy & Security → Accessibility**; after granting access,
+enable the toggle again.
+
+While enabled, the pointer moves one point every 30 seconds, alternating direction.
+Movement is skipped if input occurred in the last 10 seconds, a mouse button is held,
+or the pointer is within the top 80 points of a display. The jiggler turns off at
+launch, on sleep/display sleep, and when the user session becomes inactive. It does
+not automatically restart after waking. No settings or movement history are saved.
+
+To test a source build, quit the running copy, run `./package.sh`, then
+`open build/StratIsland.app`. Enable the toggle, place the pointer near the screen's
+center, and leave input untouched for at least 30 seconds. Check the menu item to
+confirm it is enabled. If permission is revoked, the service stops and the menu
+shows **Mouse jiggler — permission required**. Enable access and toggle it again.
+
+Source builds include this feature; previously published downloads are unchanged
+until a new release is published.
+
+This generates mouse movement; it does not guarantee another application's presence
+status or prevent every form of sleep or screen locking.
+
+#### Build from source
+
+```sh
+./package.sh          # builds build/StratIsland.app (ad-hoc signed without a Developer ID)
+open build/StratIsland.app
+```
+
+Then use the same **Install hooks…** / **Start at login** menu items. The two scripts
+behind them, `scripts/install-hooks.sh` and `scripts/install-launchagent.sh`, still work
+stand-alone if you'd rather run them by hand or from a LaunchAgent instead of a login item.
+
+### Validation
 
 ```sh
 swift build -Xswiftc -warnings-as-errors
@@ -272,7 +285,7 @@ buffer (getting the argv skip wrong yields an empty environment, which reads exa
 is asked to find the test binary's own surface by walking up the parent chain, which is the
 same shape as a background Claude job under its daemon.
 
-## Releasing
+## Deploy
 
 `package.sh` signs with the first `Developer ID Application` identity in the keychain and
 falls back to ad-hoc without one (`SIGN_IDENTITY` overrides either). The Developer ID build
@@ -285,3 +298,9 @@ gh release create v1.1 build/StratIsland-1.1.zip --title v1.1 --generate-notes
 
 Notarization needs a one-time credential profile:
 `xcrun notarytool store-credentials stratisland --apple-id <id> --team-id 78KDVL5883`.
+
+## Links
+
+- Vault: `Company/Stratcore/Projects/StratIsland/PROJECT_KNOWLEDGE.md`
+- Docs: `docs/`; license: `LICENSE`
+- Agent rules: `AGENTS.md`
